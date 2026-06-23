@@ -1,0 +1,55 @@
+"use client";
+
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
+
+export default function MarkdownRenderer({ content }) {
+  return (
+    <div className="prose prose-zinc dark:prose-invert max-w-none text-sm leading-relaxed
+      prose-headings:text-zinc-800 dark:prose-headings:text-zinc-100
+      prose-h2:text-xl prose-h2:font-bold prose-h2:mt-6 prose-h2:mb-3
+      prose-h3:text-lg prose-h3:font-semibold prose-h3:mt-4 prose-h3:mb-2
+      prose-p:text-zinc-700 dark:prose-p:text-zinc-300 prose-p:my-2
+      prose-ul:my-2 prose-li:text-zinc-700 dark:prose-li:text-zinc-300
+      prose-code:bg-zinc-100 dark:prose-code:bg-zinc-800 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-sm prose-code:before:content-none prose-code:after:content-none
+      prose-pre:bg-zinc-900 dark:prose-pre:bg-zinc-950 prose-pre:text-zinc-100 prose-pre:rounded-lg
+      prose-blockquote:border-indigo-500 prose-blockquote:bg-indigo-50 dark:prose-blockquote:bg-indigo-950/20
+      prose-strong:text-zinc-900 dark:prose-strong:text-zinc-100
+      prose-a:text-indigo-600 dark:prose-a:text-indigo-400
+    ">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm, remarkMath]}
+        rehypePlugins={[rehypeKatex]}
+        components={{
+          // 代码块用深色背景
+          pre({ children }) {
+            return (
+              <pre className="bg-zinc-900 dark:bg-zinc-950 text-zinc-100 p-4 rounded-lg overflow-x-auto text-sm my-4">
+                {children}
+              </pre>
+            );
+          },
+          code({ className, children, ...props }) {
+            const isInline = !className;
+            if (isInline) {
+              return (
+                <code className="bg-zinc-100 dark:bg-zinc-800 text-pink-600 dark:text-pink-400 px-1.5 py-0.5 rounded text-sm" {...props}>
+                  {children}
+                </code>
+              );
+            }
+            return (
+              <code className={className} {...props}>
+                {children}
+              </code>
+            );
+          },
+        }}
+      >
+        {content}
+      </ReactMarkdown>
+    </div>
+  );
+}
