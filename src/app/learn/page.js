@@ -412,7 +412,7 @@ function LearnContent() {
       const answer = await aiCall([
         {
           role: "system",
-          content: `你是知学伴的"以教促学"导师。学生正在向你讲解一道他之前做错的题。
+          content: `你是智学伴的"以教促学"导师。学生正在向你讲解一道他之前做错的题。
 
 原题：${wrongQ?.question || "无"}
 正确答案：${wrongQ?.answer || "无"}
@@ -1057,7 +1057,7 @@ function FloatingHelper({ lecture, stage, sectionKey }) {
           messages: [
             {
               role: "system",
-              content: `你是知学伴的 AI 学习助手。学生正在${stageLabel}。
+              content: `你是智学伴的 AI 学习助手。学生正在${stageLabel}。
 
 根据以下授课内容回答学生的问题：
 ${lecture.slice(0, 1500)}
@@ -1177,7 +1177,7 @@ ${lecture.slice(0, 1500)}
 
 // ===================== AI Prompts =====================
 function lectureSystemPrompt(courseTitle, chapterTitle, sectionTitle) {
-  return `你是知学伴的 AI 讲师。讲解课程内容。
+  return `你是智学伴的 AI 讲师。讲解课程内容。
 
 课程：${courseTitle}
 章节：${chapterTitle}
@@ -1191,7 +1191,7 @@ function lectureSystemPrompt(courseTitle, chapterTitle, sectionTitle) {
 }
 
 function quizGenPrompt(courseTitle, lecture) {
-  return `你是知学伴的出题老师。根据以下授课内容出 3-5 道小测验题。
+  return `你是智学伴的出题老师。根据以下授课内容出 3-5 道小测验题。
 
 课程：${courseTitle}
 授课内容：${lecture.slice(0, 2000)}
@@ -1216,7 +1216,7 @@ function quizGenPrompt(courseTitle, lecture) {
 }
 
 function practiceGenPrompt(courseTitle, lecture, weakPoints) {
-  return `你是知学伴的练习老师。根据以下内容和学生的薄弱点，出 3-4 道针对性练习。
+  return `你是智学伴的练习老师。根据以下内容和学生的薄弱点，出 3-4 道针对性练习。
 
 课程：${courseTitle}
 薄弱点：${weakPoints}
