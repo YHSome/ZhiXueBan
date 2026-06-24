@@ -47,12 +47,17 @@
       "public/**/*",
       "node_modules/**/*",
       "package.json",
-      "main.js"
+      "main.js",
+      "next.config.mjs"
     ],
     "win": {
-      "target": "dir",
+      "target": "portable",
       "icon": "public/favicon.ico"
     },
-    "nsis": null
+    "npmRebuild": false,
+    "electronVersion": "42.5.0",
+    "electronDownload": {
+      "mirror": "https://npmmirror.com/mirrors/electron/"
+    }
   }
 }
