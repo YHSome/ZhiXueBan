@@ -6,6 +6,14 @@ import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 
 export default function MarkdownRenderer({ content }) {
+  // 统一 LaTeX 分隔符：兼容 \(...\) \[...\] → $...$ $$...$$
+  // 注意 JS replace 中 $$ 是特殊模式（插入一个字面 $），所以用 $$$$ 得到两个 $
+  const normalized = content
+    .replace(/\\\[/g, "$$$$")  // \[ → $$
+    .replace(/\\\]/g, "$$$$")  // \] → $$
+    .replace(/\\\(/g, "$$")    // \( → $
+    .replace(/\\\)/g, "$$");   // \) → $
+
   return (
     <div className="prose prose-zinc dark:prose-invert max-w-none text-sm leading-relaxed
       prose-headings:text-zinc-800 dark:prose-headings:text-zinc-100
@@ -48,7 +56,7 @@ export default function MarkdownRenderer({ content }) {
           },
         }}
       >
-        {content}
+        {normalized}
       </ReactMarkdown>
     </div>
   );

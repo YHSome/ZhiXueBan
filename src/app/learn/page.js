@@ -4,6 +4,7 @@ import { Suspense, useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getApiConfig } from "@/lib/api-key";
 import { getAllCourses, getCourse, deleteCourse } from "@/lib/courses";
+import { getAllExams, deleteExam } from "@/lib/exams";
 import MarkdownRenderer from "@/components/MarkdownRenderer";
 
 // ===================== 阶段枚举 =====================
@@ -86,7 +87,7 @@ function LearnContent() {
   }, [sectionCache]);
 
   // ---------- AI 调用 ----------
-  async function aiCall(messages, maxTokens = 2000) {
+  async function aiCall(messages, maxTokens = 20000) {
     const config = getApiConfig();
     const res = await fetch("/api/ai", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -144,8 +145,8 @@ function LearnContent() {
   async function startQuiz() {
     const key = activeKey();
     const cache = activeCache();
-    // 已有小测数据 → 直接恢复，不重新生成
-    if (cache.quiz?.questions?.length > 0) {
+    // 已有小测数据且不是错误 → 直接恢复
+    if (cache.quiz?.questions?.length > 0 && cache.quiz.questions[0]?.type !== "error") {
       setLoading(false);
       updateCache(key, { stage: STAGE.QUIZ });
       return;
@@ -156,13 +157,19 @@ function LearnContent() {
       const raw = await aiCall([
         { role: "system", content: quizGenPrompt(course.courseTitle, cache.lecture) },
         { role: "user", content: "请根据上面的授课内容生成小测验。" },
-      ], 3000);
+      ], 20000);
 
       // 解析 JSON
       let quizData;
-      try { quizData = JSON.parse(raw.trim()); } catch {
-        const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-        quizData = JSON.parse(cleaned);
+      try {
+        const jsonMatch = raw.match(/\{[\s\S]*\}/);
+        quizData = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
+      } catch {
+        try {
+          quizData = JSON.parse(raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim());
+        } catch {
+          throw new Error("AI 出题格式异常，请重试");
+        }
       }
 
       const questions = (quizData.questions || []).map((q) => ({
@@ -265,11 +272,14 @@ function LearnContent() {
 }`,
         },
         { role: "user", content: `学生答题情况：\n${qaText}` },
-      ], 4000);
+      ], 20000);
 
       let review;
-      try { review = JSON.parse(raw.trim()); } catch {
-        review = JSON.parse(raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim());
+      try {
+        const jsonMatch = raw.match(/\{[\s\S]*\}/);
+        review = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
+      } catch {
+        try { review = JSON.parse(raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim()); } catch { throw new Error("批改结果异常，请重试"); }
       }
 
       // 标记结果，附上解题步骤
@@ -301,8 +311,8 @@ function LearnContent() {
   async function startPractice() {
     const key = activeKey();
     const cache = activeCache();
-    // 已有练习数据 → 直接恢复
-    if (cache.practice?.questions?.length > 0) {
+    // 已有练习数据且不是错误 → 直接恢复
+    if (cache.practice?.questions?.length > 0 && cache.practice.questions[0]?.type !== "error") {
       setLoading(false);
       updateCache(key, { stage: STAGE.PRACTICE });
       return;
@@ -314,11 +324,22 @@ function LearnContent() {
       const raw = await aiCall([
         { role: "system", content: practiceGenPrompt(course.courseTitle, cache.lecture, weakPoints) },
         { role: "user", content: "请根据薄弱点生成针对性练习。" },
-      ], 3000);
+      ], 20000);
 
       let practiceData;
-      try { practiceData = JSON.parse(raw.trim()); } catch {
-        practiceData = JSON.parse(raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim());
+      try {
+        const jsonMatch = raw.match(/\{[\s\S]*\}/);
+        practiceData = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
+      } catch {
+        try { practiceData = JSON.parse(raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim()); } catch {
+          // 输出原始回复的前 200 字符方便排查
+          const snippet = raw.slice(0, 200).replace(/\n/g, " ");
+          throw new Error(`解析失败：${snippet}...`);
+        }
+      }
+
+      if (!practiceData.questions || practiceData.questions.length === 0) {
+        throw new Error("AI 未生成题目，请重试");
       }
 
       const questions = (practiceData.questions || []).map((q) => ({
@@ -357,8 +378,11 @@ function LearnContent() {
       ], 2000);
 
       let review;
-      try { review = JSON.parse(raw.trim()); } catch {
-        review = JSON.parse(raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim());
+      try {
+        const jsonMatch = raw.match(/\{[\s\S]*\}/);
+        review = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
+      } catch {
+        try { review = JSON.parse(raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim()); } catch { throw new Error("批改结果异常，请重试"); }
       }
 
       const reviewedQuestions = questions.map((q, i) => {
@@ -541,15 +565,18 @@ function LearnContent() {
     const stage = cache?.stage;
 
     // 阅读阶段 → 后台出小测题
-    if (stage === STAGE.READING && cache.lecture && !cache.quiz) {
+    if (stage === STAGE.READING && cache.lecture && (!cache.quiz || cache.quiz.questions?.[0]?.type === "error")) {
       try {
         const raw = await aiCall([
           { role: "system", content: quizGenPrompt(course.courseTitle, cache.lecture) },
           { role: "user", content: "请根据上面的授课内容生成小测验。" },
-        ], 3000);
+        ], 20000);
         let quizData;
-        try { quizData = JSON.parse(raw.trim()); } catch {
-          quizData = JSON.parse(raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim());
+        try {
+          const jsonMatch = raw.match(/\{[\s\S]*\}/);
+          quizData = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
+        } catch {
+          try { quizData = JSON.parse(raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim()); } catch { return; }
         }
         const questions = (quizData.questions || []).map((q) => ({ ...q, userAnswer: "" }));
         updateCache(key, { quiz: { questions } });
@@ -563,10 +590,13 @@ function LearnContent() {
         const raw = await aiCall([
           { role: "system", content: practiceGenPrompt(course.courseTitle, cache.lecture, weakPoints) },
           { role: "user", content: "请根据薄弱点生成针对性练习。" },
-        ], 3000);
+        ], 20000);
         let practiceData;
-        try { practiceData = JSON.parse(raw.trim()); } catch {
-          practiceData = JSON.parse(raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim());
+        try {
+          const jsonMatch = raw.match(/\{[\s\S]*\}/);
+          practiceData = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
+        } catch {
+          try { practiceData = JSON.parse(raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim()); } catch { return; }
         }
         const questions = (practiceData.questions || []).map((q) => ({ ...q, userAnswer: "" }));
         updateCache(key, { practice: { questions } });
@@ -645,6 +675,8 @@ function LearnContent() {
             ))}
           </div>
         )}
+
+        <ExamSection />
       </div>
     );
   }
@@ -770,6 +802,10 @@ function LearnContent() {
                 updateCache(key, { quiz: { ...cache.quiz, questions: qs } });
               }}
               onSubmit={submitQuiz}
+              onRetry={() => {
+                updateCache(key, { quiz: undefined });
+                startQuiz();
+              }}
               loading={loading}
             />
           )}
@@ -802,6 +838,10 @@ function LearnContent() {
                 updateCache(key, { practice: { ...cache.practice, questions: qs } });
               }}
               onSubmit={submitPractice}
+              onRetry={() => {
+                updateCache(key, { practice: undefined });
+                startPractice();
+              }}
               loading={loading}
             />
           )}
@@ -943,8 +983,25 @@ function LoadingHint({ text }) {
 }
 
 // 小测 / 练习面板
-function QuizPanel({ title = "✍️ 小测验", questions, onAnswerChange, onSubmit, loading }) {
+function QuizPanel({ title = "✍️ 小测验", questions, onAnswerChange, onSubmit, loading, onRetry }) {
   if (questions.length === 0) return <LoadingHint text="AI 正在出题..." />;
+
+  // 出题失败 → 显示重试按钮
+  if (questions.length === 1 && questions[0]?.type === "error") {
+    return (
+      <div className="text-center py-12">
+        <div className="text-4xl mb-4">⚠️</div>
+        <p className="text-red-500 dark:text-red-400 mb-2">出题失败</p>
+        <p className="text-sm text-zinc-500 mb-6">{questions[0].question}</p>
+        {onRetry && (
+          <button onClick={onRetry}
+            className="px-6 py-3 rounded-xl bg-indigo-600 text-white font-semibold hover:bg-indigo-700 transition-colors">
+            🔄 重新出题
+          </button>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -952,10 +1009,10 @@ function QuizPanel({ title = "✍️ 小测验", questions, onAnswerChange, onSu
       <div className="space-y-6 mb-6">
         {questions.map((q, i) => (
           <div key={i} className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-5">
-            <p className="font-medium text-black dark:text-zinc-100 mb-3">
-              {i + 1}. {q.question}
-            </p>
-            {q.options ? (
+            <div className="font-medium text-black dark:text-zinc-100 mb-3">
+              {i + 1}. <MarkdownRenderer content={q.question} />
+            </div>
+            {q.options?.length > 0 ? (
               <div className="space-y-2">
                 {q.options.map((opt, oi) => (
                   <label key={oi} className={`flex items-center gap-3 p-2 rounded-lg transition-colors ${loading ? "opacity-60" : "cursor-pointer"} ${q.userAnswer === opt ? "bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800" : "hover:bg-zinc-50 dark:hover:bg-zinc-800 border border-transparent"}`}>
@@ -980,6 +1037,75 @@ function QuizPanel({ title = "✍️ 小测验", questions, onAnswerChange, onSu
         className="w-full py-4 rounded-xl bg-indigo-600 text-white font-semibold text-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors">
         📩 提交
       </button>
+    </div>
+  );
+}
+
+// 试卷列表（课程列表页用）
+function ExamSection() {
+  const router = useRouter();
+  const [exams, setExams] = useState([]);
+
+  useEffect(() => {
+    setExams(getAllExams());
+  }, []);
+
+  if (exams.length === 0) {
+    return (
+      <div className="mt-8 pt-8 border-t border-zinc-200 dark:border-zinc-800">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-bold text-black dark:text-zinc-50">📋 我的试卷</h2>
+          <button onClick={() => router.push("/exam/create")} className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-indigo-700">
+            + 新建试卷
+          </button>
+        </div>
+        <p className="text-zinc-400 text-sm text-center py-8">还没有试卷，AI 出卷模拟真实考试</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-8 pt-8 border-t border-zinc-200 dark:border-zinc-800">
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-2xl font-bold text-black dark:text-zinc-50">📋 我的试卷</h2>
+        <button onClick={() => router.push("/exam/create")} className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-indigo-700">
+          + 新建试卷
+        </button>
+      </div>
+      <div className="space-y-3">
+        {exams.map((e) => (
+          <div key={e.id} onClick={() => {
+            if (e.status === "completed") {
+              alert(`成绩：${e.result?.totalScore || "-"}/100`);
+            } else {
+              router.push(`/exam/take?examId=${e.id}`);
+            }
+          }}
+            className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-5 hover:shadow-md hover:border-indigo-300 cursor-pointer flex items-center justify-between">
+            <div className="flex-1 min-w-0">
+              <h3 className="font-semibold text-black dark:text-zinc-100 mb-1 truncate">{e.title}</h3>
+              <div className="flex items-center gap-3 text-sm text-zinc-500">
+                <span>{e.courseTitle}</span>
+                <span>·</span>
+                <span>{e.questions?.length || 0} 题</span>
+                <span>·</span>
+                <span>{e.timeLimit > 0 ? `${e.timeLimit} 分钟` : "不限时"}</span>
+                {e.status === "completed" && e.result && (
+                  <>
+                    <span>·</span>
+                    <span className={e.result.totalScore >= 60 ? "text-green-500" : "text-red-500"}>
+                      {e.result.totalScore}/100
+                    </span>
+                  </>
+                )}
+                {e.status === "ready" && <span className="text-indigo-500">待考试</span>}
+              </div>
+            </div>
+            <button onClick={(ev) => { ev.stopPropagation(); if (confirm("删除试卷？")) { deleteExam(e.id); setExams(getAllExams()); } }}
+              className="text-zinc-400 hover:text-red-500 text-sm px-3 py-1 rounded hover:bg-red-50 transition-colors">🗑️</button>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -1062,7 +1188,7 @@ function ReviewPanel({ title = "🔍 批改结果", questions, review, onRetry, 
               <div className="flex items-start gap-2 mb-2">
                 <span className="text-lg">{q.correct ? "✅" : "❌"}</span>
                 <div className="flex-1">
-                  <p className="text-sm font-medium text-black dark:text-zinc-100">{i + 1}. {q.question}</p>
+                  <div className="text-sm font-medium text-black dark:text-zinc-100">{i + 1}. <MarkdownRenderer content={q.question} /></div>
                   <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
                     <span className="text-xs text-zinc-400">你的答案：{q.userAnswer || "（未作答）"}</span>
                     {!q.correct && <span className="text-xs text-green-600 dark:text-green-400">正确答案：{q.answer}</span>}
@@ -1250,14 +1376,14 @@ function QuizReviewCombined({ title, questions, review, onSubmit, onPractice, on
                 <div className="flex items-start gap-2 mb-2">
                   <span className="text-lg">{icon}</span>
                   <div className="flex-1">
-                    <p className="text-sm font-medium text-black dark:text-zinc-100">
-                      {i + 1}. {q.question}
+                    <div className="text-sm font-medium text-black dark:text-zinc-100">
+                      {i + 1}. <MarkdownRenderer content={q.question} />
                       {isPartial && q.partialScore != null && (
                         <span className="ml-2 text-xs text-amber-600 dark:text-amber-400 font-normal">
                           （得 {Math.round(q.partialScore * 100)}% 分）
                         </span>
                       )}
-                    </p>
+                    </div>
                     <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
                       <span className="text-xs text-zinc-400">你的答案：{q.userAnswer || "（未作答）"}</span>
                       {!isCorrect && <span className="text-xs text-green-600 dark:text-green-400">正确答案：{q.answer}</span>}
@@ -1395,6 +1521,8 @@ ${lecture.slice(0, 1500)}
 要求：
 - 耐心解答任何问题，可以详细解释
 - 可以举例帮助理解
+- 涉及数学公式请用 $...$（行内）或 $$...$$（块级）LaTeX 格式
+- 不要用 \\(...\\) 或 \\[...\\] 这种写法
 - 回答清晰有条理
 - 态度友好鼓励`,
             },
@@ -1547,15 +1675,20 @@ function quizGenPrompt(courseTitle, lecture) {
 }
 
 function practiceGenPrompt(courseTitle, lecture, weakPoints) {
-  return `你是智学伴的练习老师。根据以下内容和学生的薄弱点，出 3-4 道针对性练习。
+  return `你是智学伴的练习老师。根据以下内容和学生薄弱点，出 3-4 道针对性练习。
 
 课程：${courseTitle}
 薄弱点：${weakPoints}
 授课内容：${lecture.slice(0, 1500)}
 
-⚠️ 纯文字题目，不得引用图片、图形，不得出现"如图"、"看图"等表述。
+出题原则：
+- 纯文字，不得引用图片
+- 公式必须用 $...$（行内）$$...$$（块级），禁止用 \\(...\\)
+- options 仅选择题需要，填空/简答不要带 options 字段
+- 每题附正确答案 answer
 
-返回 JSON：{"questions":[{"type":"choice|fill|short","question":"...","answer":"..."}]}`;
+返回 JSON（不要 markdown 代码块）：
+{"questions":[{"type":"choice","question":"...","options":["A","B","C","D"],"answer":"B"},{"type":"fill","question":"...","answer":"..."},{"type":"short","question":"...","answer":"..."}]}`;
 }
 
 // ===================== 默认导出 =====================

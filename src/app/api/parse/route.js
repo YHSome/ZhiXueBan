@@ -22,7 +22,7 @@ export async function POST(request) {
     if (isZip) {
       // ZIP 压缩包：先解压，再逐个解析内部文件
       try {
-        const JSZip = require("jszip");
+        const JSZip = (await import("jszip")).default;
         const zip = await JSZip.loadAsync(buffer);
         const parts = [];
 
@@ -70,7 +70,13 @@ export async function POST(request) {
     }
 
     if (!text || text.trim().length < 10) {
-      return Response.json({ error: "文件内容太少，无法提取有效文本" }, { status: 422 });
+      const hint = ext === "pdf" || ext === "docx"
+        ? "。此文件可能是扫描件或图片型文档，不含可提取的文字"
+        : "";
+      return Response.json(
+        { error: `文件内容太少，无法提取有效文本${hint}` },
+        { status: 422 }
+      );
     }
 
     return Response.json({ text: text.trim(), fileName });
@@ -115,8 +121,10 @@ async function parseBuffer(buffer, ext) {
   }
 
   if (ext === "docx") {
-    const mammoth = require("mammoth");
-    const result = await mammoth.extractRawText({ buffer });
+    const mammoth = await import("mammoth");
+    const extractRawText = mammoth.default?.extractRawText || mammoth.extractRawText;
+    if (!extractRawText) throw new Error("mammoth 加载失败");
+    const result = await extractRawText({ buffer });
     return result.value;
   }
 

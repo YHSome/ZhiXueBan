@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { setApiKey, setApiBaseUrl, setApiModel, getApiKey, getApiBaseUrl, getApiModel } from "@/lib/api-key";
 import { validateApiKey } from "@/lib/ai";
+import { getFontSize, setFontSize } from "@/lib/font-size";
 
 export default function SetupPage() {
   const router = useRouter();
@@ -13,14 +14,23 @@ export default function SetupPage() {
   const [testing, setTesting] = useState(false);
   const [message, setMessage] = useState(null);
   const [loaded, setLoaded] = useState(false);
+  const [fontSize, setFontSizeState] = useState("standard");
 
   // 客户端挂载后从 localStorage 加载已保存的配置
   useEffect(() => {
     setApiKeyState(getApiKey() || "");
     setBaseUrl(getApiBaseUrl() || "https://api.openai.com/v1");
     setModel(getApiModel() || "gpt-4o");
+    setFontSizeState(getFontSize());
     setLoaded(true);
   }, []);
+
+  function handleFontSizeChange(size) {
+    setFontSizeState(size);
+    setFontSize(size);
+    document.documentElement.className = document.documentElement.className
+      .replace(/font-\w+/g, "") + ` font-${size}`;
+  }
 
   // 国内常用 API 快速切换
   const presets = [
@@ -112,6 +122,25 @@ export default function SetupPage() {
             onChange={(e) => setModel(e.target.value)}
             className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-black dark:text-zinc-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
           />
+        </div>
+      </div>
+
+      {/* 字号 */}
+      <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-6 mb-6">
+        <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-3">字号</label>
+        <div className="flex gap-2">
+          <button
+            onClick={() => handleFontSizeChange("standard")}
+            className={`flex-1 py-3 rounded-lg border-2 text-sm transition-colors ${fontSize === "standard" ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300" : "border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400"}`}
+          >
+            标准
+          </button>
+          <button
+            onClick={() => handleFontSizeChange("large")}
+            className={`flex-1 py-3 rounded-lg border-2 text-sm transition-colors ${fontSize === "large" ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300" : "border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400"}`}
+          >
+            大号
+          </button>
         </div>
       </div>
 
