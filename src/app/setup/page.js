@@ -1,17 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { setApiKey, setApiBaseUrl, setApiModel, getApiKey, getApiBaseUrl, getApiModel } from "@/lib/api-key";
 import { validateApiKey } from "@/lib/ai";
 
 export default function SetupPage() {
   const router = useRouter();
-  const [apiKey, setApiKeyState] = useState(getApiKey() || "");
-  const [baseUrl, setBaseUrl] = useState(getApiBaseUrl() || "https://api.openai.com/v1");
-  const [model, setModel] = useState(getApiModel() || "gpt-4o");
+  const [apiKey, setApiKeyState] = useState("");
+  const [baseUrl, setBaseUrl] = useState("https://api.openai.com/v1");
+  const [model, setModel] = useState("gpt-4o");
   const [testing, setTesting] = useState(false);
-  const [message, setMessage] = useState(null); // { type: "success"|"error", text }
+  const [message, setMessage] = useState(null);
+  const [loaded, setLoaded] = useState(false);
+
+  // 客户端挂载后从 localStorage 加载已保存的配置
+  useEffect(() => {
+    setApiKeyState(getApiKey() || "");
+    setBaseUrl(getApiBaseUrl() || "https://api.openai.com/v1");
+    setModel(getApiModel() || "gpt-4o");
+    setLoaded(true);
+  }, []);
 
   // 国内常用 API 快速切换
   const presets = [

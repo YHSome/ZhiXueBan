@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { hasApiKey } from "@/lib/api-key";
 import { callAI } from "@/lib/ai";
@@ -8,7 +8,9 @@ import { addCourse } from "@/lib/courses";
 
 export default function CreatePage() {
   const router = useRouter();
-  const [mode, setMode] = useState("describe"); // "describe" | "upload"
+  const [mounted, setMounted] = useState(false);
+  const [mode, setMode] = useState("describe");
+  const [dragOver, setDragOver] = useState(false);
   const [describeInput, setDescribeInput] = useState("");
   const [generating, setGenerating] = useState(false);
   const [fileText, setFileText] = useState(null); // 解析出来的文本
@@ -20,8 +22,10 @@ export default function CreatePage() {
   const [error, setError] = useState(null);
   const fileInputRef = useRef(null);
 
-  // 如果还没配置 API Key，跳去设置页
-  if (!hasApiKey()) {
+  useEffect(() => { setMounted(true); }, []);
+
+  // 挂载后才判断，避免 SSR 时 hasApiKey 返回 false 导致 hydration 不一致
+  if (mounted && !hasApiKey()) {
     return (
       <div className="max-w-2xl mx-auto text-center py-16">
         <p className="text-zinc-500 dark:text-zinc-400 mb-4">
@@ -80,11 +84,15 @@ export default function CreatePage() {
       // 尝试解析 JSON
       let data;
       try {
-        data = JSON.parse(result.trim());
+        const jsonMatch = result.match(/\{[\s\S]*\}/);
+        data = JSON.parse(jsonMatch ? jsonMatch[0] : result);
       } catch {
-        // 可能存在 markdown 代码块包裹
-        const cleaned = result.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-        data = JSON.parse(cleaned);
+        try {
+          const cleaned = result.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+          data = JSON.parse(cleaned);
+        } catch {
+          throw new Error("AI 返回了不完整的回复，请重试");
+        }
       }
 
       setChapters(data);
@@ -107,18 +115,27 @@ export default function CreatePage() {
     setChapters(null);
 
     try {
-      // 读取文件文本
-      const text = await readFileContent(file);
+      // 通过服务端 API 解析文件（支持 PDF/DOCX/PPTX/TXT/MD）
+      const formData = new FormData();
+      formData.append("file", file);
+      const parseRes = await fetch("/api/parse", { method: "POST", body: formData });
+      const parseData = await parseRes.json();
+      if (!parseRes.ok) {
+        setParseError(parseData.error || "文件解析失败");
+        setParsing(false);
+        return;
+      }
+      const text = parseData.text;
       if (!text || text.trim().length < 50) {
         setParseError("文件内容太少，无法提取有效信息");
         setParsing(false);
         return;
       }
 
-      // 如果文本太长，截取前面部分发送给 AI 识别章节
-      const maxLen = 15000;
+      // 截取前段给 AI 识别章节（足够看到全文结构）
+      const maxLen = 80000;
       const textToSend = text.length > maxLen
-        ? text.slice(0, maxLen) + "\n\n[文件过长，以上为前 " + maxLen + " 字符...]"
+        ? text.slice(0, maxLen) + `\n\n[文件共 ${text.length} 字符，以上为前 ${maxLen} 字符，后续内容 AI 已省略]`
         : text;
 
       setFileText(text); // 保存完整文本
@@ -159,15 +176,29 @@ export default function CreatePage() {
           },
         ],
         temperature: 0.3,
-        maxTokens: 4000,
+        maxTokens: 16000,
       });
 
+      // 尝试多种方式解析 JSON（AI 可能返回不完整或格式异常的回复）
       let data;
       try {
-        data = JSON.parse(result.trim());
+        // 先找 JSON 对象（处理 AI 在 JSON 前后加文字的情况）
+        const jsonMatch = result.match(/\{[\s\S]*\}/);
+        const jsonStr = jsonMatch ? jsonMatch[0] : result;
+        data = JSON.parse(jsonStr);
       } catch {
-        const cleaned = result.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-        data = JSON.parse(cleaned);
+        try {
+          const cleaned = result.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+          data = JSON.parse(cleaned);
+        } catch {
+          throw new Error("AI 返回了不完整的回复，请重试或缩短文件后再试");
+        }
+      }
+
+      if (!data.chapters || data.chapters.length === 0) {
+        setParseError("AI 未能识别出章节结构，请确认文件包含清晰的内容或尝试用「描述生成」方式创建课程");
+        setParsing(false);
+        return;
       }
 
       // 标记有残缺的章节
@@ -178,32 +209,10 @@ export default function CreatePage() {
 
       setChapters({ ...data, chapters: chaptersWithGaps });
     } catch (e) {
-      setParseError(`解析失败：${e.message}`);
+      setParseError(`${e.message}`);
     } finally {
       setParsing(false);
     }
-  }
-
-  // 读取文件内容
-  async function readFileContent(file) {
-    // 纯文本文件
-    if (file.type === "text/plain" || file.name.endsWith(".txt") || file.name.endsWith(".md")) {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = reject;
-        reader.readAsText(file);
-      });
-    }
-
-    // PDF、DOCX、PPT 等复杂格式先用 text 方式尝试
-    // 后续可以加专门的解析库
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = reject;
-      reader.readAsText(file);
-    });
   }
 
   // 编辑章节
@@ -236,6 +245,21 @@ export default function CreatePage() {
       ...updated[chapterIdx],
       sections: updated[chapterIdx].sections.filter((_, i) => i !== sectionIdx),
     };
+    setChapters({ ...chapters, chapters: updated });
+  }
+
+  function addChapter() {
+    setChapters({
+      ...chapters,
+      chapters: [
+        ...chapters.chapters,
+        { title: "新章节", sections: [{ title: "新小节" }], hasGaps: false },
+      ],
+    });
+  }
+
+  function removeChapter(chapterIdx) {
+    const updated = chapters.chapters.filter((_, i) => i !== chapterIdx);
     setChapters({ ...chapters, chapters: updated });
   }
 
@@ -282,6 +306,14 @@ export default function CreatePage() {
                     ⚠ 内容有残缺 — 学习时 AI 会自动补全
                   </span>
                 )}
+                <div className="flex-1" />
+                <button
+                  onClick={() => removeChapter(ci)}
+                  className="text-red-400 hover:text-red-600 text-sm px-2 py-1 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+                  title="删除此章节"
+                >
+                  🗑 删除章节
+                </button>
               </div>
               <input
                 type="text"
@@ -318,6 +350,14 @@ export default function CreatePage() {
               </div>
             </div>
           ))}
+
+          {/* 添加章节 */}
+          <button
+            onClick={addChapter}
+            className="w-full py-4 rounded-xl border-2 border-dashed border-zinc-300 dark:border-zinc-700 text-zinc-500 hover:border-indigo-400 hover:text-indigo-600 dark:hover:border-indigo-500 dark:hover:text-indigo-400 transition-colors text-sm font-medium"
+          >
+            + 添加章节
+          </button>
         </div>
 
         <div className="flex gap-3">
@@ -407,7 +447,26 @@ export default function CreatePage() {
         <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-6">
           <div
             onClick={() => fileInputRef.current?.click()}
-            className="border-2 border-dashed border-zinc-300 dark:border-zinc-700 rounded-xl p-12 text-center cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-500 transition-colors"
+            onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setDragOver(true); }}
+            onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setDragOver(true); }}
+            onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setDragOver(false); }}
+            onDrop={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setDragOver(false);
+              const file = e.dataTransfer?.files?.[0];
+              if (file && fileInputRef.current) {
+                const dt = new DataTransfer();
+                dt.items.add(file);
+                fileInputRef.current.files = dt.files;
+                handleFileUpload({ target: { files: dt.files } });
+              }
+            }}
+            className={`border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-all ${
+              dragOver
+                ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20 scale-[1.02]"
+                : "border-zinc-300 dark:border-zinc-700 hover:border-indigo-400 dark:hover:border-indigo-500"
+            }`}
           >
             <div className="text-4xl mb-3">📤</div>
             <p className="text-zinc-600 dark:text-zinc-400 mb-1">

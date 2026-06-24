@@ -131,6 +131,8 @@ function LearnContent() {
         { role: "user", content: `请讲解"${section.title}"这一节的内容。` },
       ]);
       updateCache(key, { lecture: result, chatMessages: [] });
+      // 后台预生成小测题目
+      prefetchNextStage();
     } catch (e) {
       updateCache(key, { lecture: `❌ 生成失败：${e.message}` });
     } finally {
@@ -177,11 +179,11 @@ function LearnContent() {
   }
 
   // ---------- 提交小测 ----------
-  async function submitQuiz() {
+  async function submitQuiz(force = false) {
     const key = activeKey();
     const cache = activeCache();
-    // 已批改过 → 直接恢复
-    if (cache.review) {
+    // 已批改过且非强制 → 直接恢复
+    if (!force && cache.review) {
       setLoading(false);
       updateCache(key, { stage: STAGE.REVIEW });
       return;
@@ -228,28 +230,36 @@ function LearnContent() {
 授课内容：${cache.lecture.slice(0, 1000)}
 
 ⚠️ 批改规则（务必遵守）：
-1. 选择题：学生选了正确选项即判对。不需要完全逐字匹配，只要选中的选项字母或内容与正确选项一致即可。例如正确答案是"B"，学生答"B"或"B. xxx"都应判对。
-2. 填空题：学生答案的**核心意思**与正确答案一致即判对。不要纠缠于措辞差异。例如正确答案是"假"，学生答"假"或"false"或"F"都应判对。
-3. 简答题：学生答案**覆盖了核心要点**即判对。不需要完整复述，只要关键逻辑正确。部分正确但不够完整的，判错但 feedback 中说明差在哪里。
-4. 不要因为答得太简短而判错——只看内容对不对。
+1. 选择题、填空题、计算题：只有"对"和"错"两种结果。答对即判对，答错即判错。格式问题（如多写了一个标点、大小写不同）不影响正确性，只要核心答案对就判对。
+2. 简答题：可以有"半对"——学生答对了部分要点但不完整时，判半对并注明得分比例。
+3. 学生用超纲方法答对了——必须判对。不拘泥于章节范围。
+4. 当不确定时，倾向判对。
 
 每题都写：
+- verdict: "correct" | "wrong" | "partial"
+- 如果是 "partial"，额外给 score（0-1之间的小数，如0.5表示得50%分）
 - 详细解题步骤（Markdown，有公式用 LaTeX）
-- 简短点评（为什么对/为什么错）
-- correct 字段（true/false）
+- 简短点评
 
-评分规则：每题分值相同，满分100。例如4道题，每道25分，对几道就是几分×25。
+评分规则：每题基准分=100÷题目总数。"correct"得满分，"wrong"得0分，"partial"得基准分×score。最终总分四舍五入。
 
 返回 JSON（不要 markdown 代码块）：
 {
   "results": [
     {
-      "correct": true/false,
+      "verdict": "correct",
+      "score": null,
       "steps": "详细解题步骤（用Markdown，有公式用LaTeX）",
       "feedback": "点评"
+    },
+    {
+      "verdict": "partial",
+      "score": 0.5,
+      "steps": "...",
+      "feedback": "答对了XX部分，但YY部分有遗漏"
     }
   ],
-  "score": 75,
+  "score": 88,
   "weakPoints": ["薄弱点"],
   "suggestion": "学习建议"
 }`,
@@ -262,13 +272,17 @@ function LearnContent() {
         review = JSON.parse(raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim());
       }
 
-      // 标记错题，附上解题步骤
-      const reviewedQuestions = questions.map((q, i) => ({
-        ...q,
-        correct: review.results?.[i]?.correct ?? false,
-        steps: review.results?.[i]?.steps || "",
-        feedback: review.results?.[i]?.feedback || "",
-      }));
+      // 标记结果，附上解题步骤
+      const reviewedQuestions = questions.map((q, i) => {
+        const r = review.results?.[i] || {};
+        return {
+          ...q,
+          verdict: r.verdict || (r.correct ? "correct" : "wrong"), // 兼容旧格式
+          partialScore: r.score ?? null,
+          steps: r.steps || "",
+          feedback: r.feedback || "",
+        };
+      });
 
       updateCache(key, {
         quiz: { ...cache.quiz, questions: reviewedQuestions },
@@ -279,6 +293,7 @@ function LearnContent() {
       updateCache(key, { review: { score: 0, weakPoints: [], suggestion: `批改失败：${e.message}` }, stage: STAGE.REVIEW });
     } finally {
       setLoading(false);
+      prefetchNextStage();
     }
   }
 
@@ -319,11 +334,11 @@ function LearnContent() {
     }
   }
 
-  async function submitPractice() {
+  async function submitPractice(force = false) {
     const key = activeKey();
     const cache = activeCache();
-    // 已批改过 → 直接恢复
-    if (cache.practiceReview) {
+    // 已批改过且非强制 → 直接恢复
+    if (!force && cache.practiceReview) {
       setLoading(false);
       updateCache(key, { stage: STAGE.PRACTICE_REVIEW });
       return;
@@ -346,11 +361,15 @@ function LearnContent() {
         review = JSON.parse(raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim());
       }
 
-      const reviewedQuestions = questions.map((q, i) => ({
-        ...q,
-        correct: review.results?.[i]?.correct ?? false,
-        feedback: review.results?.[i]?.feedback || "",
-      }));
+      const reviewedQuestions = questions.map((q, i) => {
+        const r = review.results?.[i] || {};
+        return {
+          ...q,
+          verdict: r.verdict || (r.correct ? "correct" : "wrong"),
+          partialScore: r.score ?? null,
+          feedback: r.feedback || "",
+        };
+      });
 
       updateCache(key, {
         practice: { ...cache.practice, questions: reviewedQuestions },
@@ -361,6 +380,7 @@ function LearnContent() {
       updateCache(key, { practiceReview: { score: 0, suggestion: `批改失败：${e.message}`, readyForTeachBack: true }, stage: STAGE.PRACTICE_REVIEW });
     } finally {
       setLoading(false);
+      prefetchNextStage();
     }
   }
 
@@ -369,23 +389,26 @@ function LearnContent() {
     const key = activeKey();
     const cache = activeCache();
 
-    // 已有以教促学数据 → 直接恢复
-    if (cache.teachBack) {
-      setLoading(false);
-      updateCache(key, { stage: STAGE.TEACH_BACK });
+    // 每次进入都重新收集最新错题
+    const quizQuestions = cache.quiz?.questions || [];
+    const practiceQuestions = cache.practice?.questions || [];
+    const wrongQuestions = [
+      ...quizQuestions.filter((q) => q.verdict !== "correct"),
+      ...practiceQuestions.filter((q) => q.verdict !== "correct"),
+    ];
+
+    // 没有错题 → 直接通关！
+    if (wrongQuestions.length === 0) {
+      updateCache(key, { stage: STAGE.COMPLETED, teachBack: { approved: true, wrongQuestions: [], chatMessages: [] } });
       return;
     }
 
-    // 收集错题
-    const wrongQuestions = [
-      ...(cache.quiz?.questions || []).filter((q) => !q.correct),
-      ...(cache.practice?.questions || []).filter((q) => !q.correct),
-    ];
+    const existingChat = cache.teachBack?.chatMessages || [];
 
     updateCache(key, {
       teachBack: {
         wrongQuestions,
-        chatMessages: [],
+        chatMessages: wrongQuestions.length > 0 ? existingChat : [],
         approved: false,
         currentWrongIndex: 0,
       },
@@ -418,13 +441,22 @@ function LearnContent() {
 正确答案：${wrongQ?.answer || "无"}
 学生之前的错误答案：${wrongQ?.userAnswer || "无"}
 
-你的角色：扮演一位严格的"学生"，听学生讲解这道题的思路。
-规则：
-1. 判断学生的讲解是否逻辑正确、真正理解了题目
-2. 如果不清楚或不完整，追问细节
-3. 如果讲错了，指出并引导
-4. 如果学生讲得正确且完整，回复 "✅ APPROVED: 你讲得很好，我理解了！"
-5. 使用口语化的语气`,
+你的角色：扮演一位"学生"，听对方讲解这道题。
+
+⚠️ 核心原则——差不多懂就行，不要抠字眼：
+- 学生用大白话讲清楚了思路 → 立刻通过，不要逼他用术语或算式
+- 学生表现出对概念的理解，即使表达不完美 → 通过
+- 只在学生明显逻辑不通、完全没搞懂时才追问
+- 不要反复追问"为什么用加法不用减法"之类的细枝末节
+- 最多追问一次，第二次还讲得通就通过
+
+判断标准：这学生是真懂还是蒙的？
+- 真懂（哪怕最土的话）→ 直接 ✅ APPROVED
+- 蒙的（逻辑矛盾）→ 温和追问一次
+
+回复格式：
+- 通过：回复 "✅ APPROVED: 你的理解是对的！" 并简单肯定
+- 追问：用口语化语气简短追问一句，不要长篇大论`,
         },
         ...updated,
       ], 1000);
@@ -436,8 +468,14 @@ function LearnContent() {
         // 这道错题通过，看还有没有下一道
         const nextIndex = tb.currentWrongIndex + 1;
         if (nextIndex < tb.wrongQuestions.length) {
+          // 插入系统提示，告诉学生切换到下一题
+          const nextQ = tb.wrongQuestions[nextIndex];
+          const sysMsg = {
+            role: "assistant",
+            content: `✅ 这道题通过了！下面是第 ${nextIndex + 1}/${tb.wrongQuestions.length} 道错题：\n\n**${nextQ.question}**`,
+          };
           updateCache(key, {
-            teachBack: { ...tb, chatMessages: newMessages, currentWrongIndex: nextIndex },
+            teachBack: { ...tb, chatMessages: [...newMessages, sysMsg], currentWrongIndex: nextIndex },
           });
         } else {
           // 所有错题讲完 → 完成！
@@ -470,6 +508,84 @@ function LearnContent() {
     const key = activeKey();
     setSectionCache((prev) => { const n = { ...prev }; delete n[key]; return n; });
     updateCache(key, {});
+  }
+
+  // 重新小测：清除数据，重新出题
+  async function resetQuiz() {
+    const key = activeKey();
+    updateCache(key, { quiz: undefined, review: undefined, stage: STAGE.QUIZ });
+    await startQuiz();
+  }
+
+  // 重新练习：清除练习数据 + 以教促学进度
+  async function resetPractice() {
+    const key = activeKey();
+    updateCache(key, { practice: undefined, practiceReview: undefined, teachBack: undefined, stage: STAGE.PRACTICE });
+    await startPractice();
+  }
+
+  // 重新批改小测（保留题目和答案，强制重新打分）
+  async function reGradeQuiz() {
+    await submitQuiz(true);
+  }
+
+  // 重新批改练习
+  async function reGradePractice() {
+    await submitPractice(true);
+  }
+
+  // 后台预生成下一阶段内容（阅读时出小测，小测完出练习，练习完准备以教促学）
+  async function prefetchNextStage() {
+    const key = activeKey();
+    const cache = activeCache();
+    const stage = cache?.stage;
+
+    // 阅读阶段 → 后台出小测题
+    if (stage === STAGE.READING && cache.lecture && !cache.quiz) {
+      try {
+        const raw = await aiCall([
+          { role: "system", content: quizGenPrompt(course.courseTitle, cache.lecture) },
+          { role: "user", content: "请根据上面的授课内容生成小测验。" },
+        ], 3000);
+        let quizData;
+        try { quizData = JSON.parse(raw.trim()); } catch {
+          quizData = JSON.parse(raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim());
+        }
+        const questions = (quizData.questions || []).map((q) => ({ ...q, userAnswer: "" }));
+        updateCache(key, { quiz: { questions } });
+      } catch { /* 后台失败静默，用户点的时候再试 */ }
+    }
+
+    // 小测批改完 → 后台出练习
+    if ((stage === STAGE.REVIEW || stage === STAGE.QUIZ) && cache.review && !cache.practice) {
+      try {
+        const weakPoints = cache.review?.weakPoints?.join("、") || "综合";
+        const raw = await aiCall([
+          { role: "system", content: practiceGenPrompt(course.courseTitle, cache.lecture, weakPoints) },
+          { role: "user", content: "请根据薄弱点生成针对性练习。" },
+        ], 3000);
+        let practiceData;
+        try { practiceData = JSON.parse(raw.trim()); } catch {
+          practiceData = JSON.parse(raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim());
+        }
+        const questions = (practiceData.questions || []).map((q) => ({ ...q, userAnswer: "" }));
+        updateCache(key, { practice: { questions } });
+      } catch { /* 静默 */ }
+    }
+
+    // 练习批改完 → 后台准备以教促学（收集最新错题）
+    if (stage === STAGE.PRACTICE_REVIEW && cache.practiceReview && !cache.teachBack?.chatMessages?.length) {
+      const allQuestions = [
+        ...(cache.quiz?.questions || []),
+        ...(cache.practice?.questions || []),
+      ];
+      const wrongQuestions = allQuestions.filter((q) => q.verdict !== "correct");
+      if (wrongQuestions.length > 0) {
+        updateCache(key, {
+          teachBack: { wrongQuestions, chatMessages: [], approved: false, currentWrongIndex: 0 },
+        });
+      }
+    }
   }
 
   // 跳回之前的阶段（进度条点击）—— 保留全部数据，只改阶段
@@ -518,7 +634,10 @@ function LearnContent() {
                 className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-5 hover:shadow-md hover:border-indigo-300 cursor-pointer flex items-center justify-between">
                 <div className="flex-1 min-w-0">
                   <h3 className="font-semibold text-black dark:text-zinc-100 mb-1 truncate">{c.courseTitle}</h3>
-                  <p className="text-sm text-zinc-500">{c.chapters?.length || 0} 个章节</p>
+                  <div className="flex items-center gap-3">
+                    <p className="text-sm text-zinc-500">{c.chapters?.length || 0} 个章节</p>
+                    <CourseProgressBar course={c} />
+                  </div>
                 </div>
                 <button onClick={(e) => { e.stopPropagation(); if (confirm(`删除「${c.courseTitle}」？`)) { deleteCourse(c.id); setAllCourses(getAllCourses()); } }}
                   className="text-zinc-400 hover:text-red-500 text-sm px-3 py-1 rounded hover:bg-red-50 transition-colors">🗑️</button>
@@ -626,66 +745,75 @@ function LearnContent() {
         </div>
       )}
 
-      {/* 小测阶段 */}
-      {stage === STAGE.QUIZ && (
-        <QuizPanel
-          questions={cache.quiz?.questions || []}
-          onAnswerChange={(qi, val) => {
-            const qs = [...cache.quiz.questions];
-            qs[qi] = { ...qs[qi], userAnswer: val };
-            updateCache(key, { quiz: { ...cache.quiz, questions: qs } });
-          }}
-          onSubmit={submitQuiz}
-          loading={loading}
-        />
+      {/* 小测（提交后结果原地展示） */}
+      {(stage === STAGE.QUIZ || stage === STAGE.REVIEW) && (
+        <>
+          {cache.review ? (
+            /* 已提交 → 题目(只读) + 结果一页展示 */
+            <QuizReviewCombined
+              title="✍️ 小测验"
+              questions={cache.quiz?.questions || []}
+              review={cache.review || {}}
+              onSubmit={submitQuiz}
+              onPractice={startPractice}
+              onTeachBack={startTeachBack}
+              onRetry={restartSection}
+              loading={loading}
+            />
+          ) : (
+            /* 未提交 → 做题 */
+            <QuizPanel
+              questions={cache.quiz?.questions || []}
+              onAnswerChange={(qi, val) => {
+                const qs = [...cache.quiz.questions];
+                qs[qi] = { ...qs[qi], userAnswer: val };
+                updateCache(key, { quiz: { ...cache.quiz, questions: qs } });
+              }}
+              onSubmit={submitQuiz}
+              loading={loading}
+            />
+          )}
+        </>
       )}
 
-      {/* 批改阶段 */}
-      {stage === STAGE.REVIEW && (
-        <ReviewPanel
-          questions={cache.quiz?.questions || []}
-          review={cache.review || {}}
-          onRetry={restartSection}
-          onPractice={startPractice}
-          onTeachBack={startTeachBack}
-          loading={loading}
-        />
+      {/* 针对性练习（提交后结果原地展示） */}
+      {(stage === STAGE.PRACTICE || stage === STAGE.PRACTICE_REVIEW) && (
+        <>
+          {cache.practiceReview ? (
+            <QuizReviewCombined
+              title="📝 针对性练习"
+              questions={cache.practice?.questions || []}
+              review={cache.practiceReview || {}}
+              onSubmit={submitPractice}
+              onTeachBack={startTeachBack}
+              onRetry={restartSection}
+              onReset={resetPractice}
+              onReGrade={reGradePractice}
+              loading={loading}
+              hidePractice
+            />
+          ) : (
+            <QuizPanel
+              title="📝 针对性练习"
+              questions={cache.practice?.questions || []}
+              onAnswerChange={(qi, val) => {
+                const qs = [...cache.practice.questions];
+                qs[qi] = { ...qs[qi], userAnswer: val };
+                updateCache(key, { practice: { ...cache.practice, questions: qs } });
+              }}
+              onSubmit={submitPractice}
+              loading={loading}
+            />
+          )}
+        </>
       )}
 
-      {/* 更多练习 */}
-      {stage === STAGE.PRACTICE && (
-        <QuizPanel
-          title="📝 针对性练习"
-          questions={cache.practice?.questions || []}
-          onAnswerChange={(qi, val) => {
-            const qs = [...cache.practice.questions];
-            qs[qi] = { ...qs[qi], userAnswer: val };
-            updateCache(key, { practice: { ...cache.practice, questions: qs } });
-          }}
-          onSubmit={submitPractice}
-          loading={loading}
-        />
-      )}
-
-      {/* 悬浮 AI 助手（小测和练习阶段显示）*/}
-      {(stage === STAGE.QUIZ || stage === STAGE.PRACTICE) && (
+      {/* 悬浮 AI 助手（阅读、小测、练习阶段显示）*/}
+      {(stage !== STAGE.IDLE && stage !== STAGE.TEACH_BACK && stage !== STAGE.COMPLETED) && (
         <FloatingHelper
           lecture={cache.lecture || ""}
           stage={stage}
           sectionKey={activeKey()}
-        />
-      )}
-
-      {/* 练习批改 */}
-      {stage === STAGE.PRACTICE_REVIEW && (
-        <ReviewPanel
-          title="📝 练习结果"
-          questions={cache.practice?.questions || []}
-          review={cache.practiceReview || {}}
-          onRetry={restartSection}
-          onTeachBack={startTeachBack}
-          loading={loading}
-          hidePractice
         />
       )}
 
@@ -730,20 +858,10 @@ function StageIndicator({ currentStage, onJumpToStage, sectionCache }) {
   const stages = [
     { key: STAGE.READING, label: "阅读", icon: "📖" },
     { key: STAGE.QUIZ, label: "小测", icon: "✍️" },
-    { key: STAGE.REVIEW, label: "批改", icon: "🔍" },
     { key: STAGE.PRACTICE, label: "练习", icon: "📝" },
-    { key: STAGE.PRACTICE_REVIEW, label: "批改", icon: "🔍" },
     { key: STAGE.TEACH_BACK, label: "以教促学", icon: "🎓" },
     { key: STAGE.COMPLETED, label: "完成", icon: "🏆" },
   ];
-
-  // 合并连续重复的"批改"
-  const displayStages = [];
-  const seen = new Set();
-  for (const s of stages) {
-    if (s.key === STAGE.PRACTICE_REVIEW && displayStages.some((d) => d.key === STAGE.REVIEW)) continue;
-    if (!seen.has(s.label)) { seen.add(s.label); displayStages.push(s); }
-  }
 
   // 判断某个阶段是否到达过（有对应数据）
   function hasReached(stageKey) {
@@ -751,24 +869,27 @@ function StageIndicator({ currentStage, onJumpToStage, sectionCache }) {
     switch (stageKey) {
       case STAGE.READING: return !!sectionCache.lecture;
       case STAGE.QUIZ: return !!sectionCache.quiz;
-      case STAGE.REVIEW: return !!sectionCache.review;
       case STAGE.PRACTICE: return !!sectionCache.practice;
-      case STAGE.PRACTICE_REVIEW: return !!sectionCache.practiceReview;
       case STAGE.TEACH_BACK: return !!sectionCache.teachBack;
-      case STAGE.COMPLETED: return sectionCache.stage === STAGE.COMPLETED;
+      case STAGE.COMPLETED: return sectionCache.stage === STAGE.COMPLETED || sectionCache.teachBack?.approved;
       default: return false;
     }
   }
 
-  const currentIdx = stages.findIndex((x) => x.key === currentStage);
+  // 将实际阶段映射到显示阶段
+  function displayStage(actualStage) {
+    if (actualStage === STAGE.REVIEW) return STAGE.QUIZ;
+    if (actualStage === STAGE.PRACTICE_REVIEW) return STAGE.PRACTICE;
+    return actualStage;
+  }
+  const currentDisplayStage = displayStage(currentStage);
+  const currentIdx = stages.findIndex((x) => x.key === currentDisplayStage);
 
   return (
     <div className="flex items-center gap-1 flex-wrap">
-      {displayStages.map((s, i) => {
-        const stageIdx = stages.findIndex((x) => x.key === s.key);
-        const isActive = stageIdx <= currentIdx || currentStage === STAGE.COMPLETED;
-        const isCurrent = s.key === currentStage
-          || (currentStage === STAGE.PRACTICE_REVIEW && s.key === STAGE.REVIEW);
+      {stages.map((s, i) => {
+        const isActive = i <= currentIdx || currentStage === STAGE.COMPLETED;
+        const isCurrent = s.key === currentDisplayStage;
         // 核心改动：到达过就能点（不限于"之前"的阶段）
         const canJump = hasReached(s.key) && !isCurrent && onJumpToStage;
 
@@ -837,8 +958,9 @@ function QuizPanel({ title = "✍️ 小测验", questions, onAnswerChange, onSu
             {q.options ? (
               <div className="space-y-2">
                 {q.options.map((opt, oi) => (
-                  <label key={oi} className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors ${q.userAnswer === opt ? "bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800" : "hover:bg-zinc-50 dark:hover:bg-zinc-800 border border-transparent"}`}>
+                  <label key={oi} className={`flex items-center gap-3 p-2 rounded-lg transition-colors ${loading ? "opacity-60" : "cursor-pointer"} ${q.userAnswer === opt ? "bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800" : "hover:bg-zinc-50 dark:hover:bg-zinc-800 border border-transparent"}`}>
                     <input type="radio" name={`q-${i}`} checked={q.userAnswer === opt} onChange={() => onAnswerChange(i, opt)}
+                      disabled={loading}
                       className="text-indigo-600 focus:ring-indigo-500" />
                     <span className="text-sm text-zinc-700 dark:text-zinc-300">{opt}</span>
                   </label>
@@ -846,8 +968,9 @@ function QuizPanel({ title = "✍️ 小测验", questions, onAnswerChange, onSu
               </div>
             ) : (
               <textarea value={q.userAnswer || ""} onChange={(e) => onAnswerChange(i, e.target.value)}
+                disabled={loading}
                 rows={3} placeholder="请输入你的答案..."
-                className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-black dark:text-zinc-100 focus:ring-2 focus:ring-indigo-500 outline-none resize-y text-sm" />
+                className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-black dark:text-zinc-100 focus:ring-2 focus:ring-indigo-500 outline-none resize-y text-sm disabled:opacity-60" />
             )}
           </div>
         ))}
@@ -857,6 +980,53 @@ function QuizPanel({ title = "✍️ 小测验", questions, onAnswerChange, onSu
         className="w-full py-4 rounded-xl bg-indigo-600 text-white font-semibold text-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors">
         📩 提交
       </button>
+    </div>
+  );
+}
+
+// 课程进度条（课程列表页用）
+function CourseProgressBar({ course }) {
+  const [mounted, setMounted] = useState(false);
+  const [progress, setProgress] = useState({ done: 0, total: 0 });
+
+  useEffect(() => {
+    const cacheKey = `zhixueban-cache-${course.id}`;
+    let total = 0;
+    (course.chapters || []).forEach((ch) => {
+      (ch.sections || []).forEach(() => { total++; });
+    });
+
+    let done = 0;
+    try {
+      const raw = localStorage.getItem(cacheKey);
+      if (raw) {
+        const cache = JSON.parse(raw);
+        for (let ci = 0; ci < (course.chapters || []).length; ci++) {
+          for (let si = 0; si < ((course.chapters[ci]?.sections) || []).length; si++) {
+            if (cache[`${ci}-${si}`]?.stage === "completed") done++;
+          }
+        }
+      }
+    } catch {}
+
+    setProgress({ done, total });
+    setMounted(true);
+  }, [course.id]);
+
+  // 服务端不渲染，等客户端挂载后再渲染，避免 hydration 不匹配
+  if (!mounted || progress.total === 0) return null;
+
+  const pct = Math.round((progress.done / progress.total) * 100);
+
+  return (
+    <div className="flex items-center gap-2">
+      <div className="w-24 h-1.5 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
+        <div
+          className="h-full bg-indigo-500 rounded-full transition-all"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <span className="text-xs text-zinc-400">{progress.done}/{progress.total}</span>
     </div>
   );
 }
@@ -956,8 +1126,11 @@ function ReviewPanel({ title = "🔍 批改结果", questions, review, onRetry, 
 
 // 以教促学面板
 function TeachBackPanel({ teachBack, onSend, loading }) {
-  const wrongQ = teachBack.wrongQuestions?.[teachBack.currentWrongIndex || 0];
+  const currentIdx = teachBack.currentWrongIndex || 0;
+  const total = teachBack.wrongQuestions?.length || 0;
+  const wrongQ = teachBack.wrongQuestions?.[currentIdx];
   const messages = teachBack.chatMessages || [];
+  const progressPct = total > 0 ? Math.round((currentIdx / total) * 100) : 0;
 
   return (
     <div>
@@ -965,19 +1138,42 @@ function TeachBackPanel({ teachBack, onSend, loading }) {
         <div className="flex items-center gap-2 mb-3">
           <span className="text-xl">🎓</span>
           <h3 className="font-semibold text-amber-800 dark:text-amber-300">以教促学</h3>
+          {total > 0 && (
+            <span className="ml-auto text-sm font-bold text-amber-700 dark:text-amber-300">
+              错题 {currentIdx + 1}/{total}
+            </span>
+          )}
         </div>
-        <p className="text-sm text-amber-700 dark:text-amber-400 mb-4">
-          向 AI 讲解你做错的题目——只有你讲清楚了，AI 才认可你真正掌握了。
-        </p>
+
+        {/* 进度条 */}
+        {total > 0 && (
+          <div className="w-full h-2 bg-amber-200 dark:bg-amber-800 rounded-full mb-4 overflow-hidden">
+            <div
+              className="h-full bg-amber-500 rounded-full transition-all duration-500"
+              style={{ width: `${progressPct}%` }}
+            />
+          </div>
+        )}
+
         {wrongQ && (
           <div className="bg-white dark:bg-zinc-800 rounded-lg p-4 border border-amber-200 dark:border-amber-800">
-            <p className="text-sm font-medium text-black dark:text-zinc-100 mb-1">📋 错题（{(teachBack.currentWrongIndex || 0) + 1}/{teachBack.wrongQuestions.length}）</p>
-            <p className="text-sm text-zinc-600 dark:text-zinc-400">{wrongQ.question}</p>
-            <p className="text-xs text-zinc-400 mt-1">正确答案：{wrongQ.answer}</p>
-            <p className="text-xs text-red-500 mt-1">你的答案：{wrongQ.userAnswer || "（未作答）"}</p>
+            <p className="text-sm font-medium text-black dark:text-zinc-100 mb-1">{wrongQ.question}</p>
+            <div className="flex gap-4 mt-2">
+              <span className="text-xs text-zinc-400">正确答案：{wrongQ.answer}</span>
+              <span className="text-xs text-red-500">你的答案：{wrongQ.userAnswer || "（未作答）"}</span>
+            </div>
           </div>
         )}
       </div>
+
+      {/* 还没开始讲，给提示 */}
+      {messages.length === 0 && wrongQ && (
+        <div className="text-center py-4 mb-2">
+          <p className="text-zinc-500 dark:text-zinc-400 text-sm">
+            👆 向 AI 讲解这道题你是怎么想的，你来讲，AI 来听
+          </p>
+        </div>
+      )}
 
       {/* 对话 */}
       <div className="space-y-3 mb-4 max-h-96 overflow-y-auto">
@@ -1012,6 +1208,127 @@ function TeachBackPanel({ teachBack, onSend, loading }) {
   );
 }
 
+// ===================== 小测/练习 + 批改合并展示 =====================
+function QuizReviewCombined({ title, questions, review, onSubmit, onPractice, onTeachBack, onRetry, onReset, onReGrade, loading, hidePractice }) {
+  const correctCount = questions.filter((q) => q.verdict === "correct").length;
+  const partialCount = questions.filter((q) => q.verdict === "partial").length;
+  const wrongCount = questions.filter((q) => q.verdict === "wrong").length;
+
+  return (
+    <div>
+      <h3 className="text-xl font-bold mb-4 text-black dark:text-zinc-50">{title}</h3>
+
+      {/* 分数卡片 */}
+      <div className={`rounded-xl p-5 mb-6 text-center ${review.score >= 80 ? "bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800" : review.score >= 60 ? "bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800" : "bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800"}`}>
+        <div className="text-3xl font-bold mb-1 text-black dark:text-zinc-100">{review.score}<span className="text-base text-zinc-400">/100</span></div>
+        <p className="text-sm text-zinc-500 mb-1">
+          正确 {correctCount} · 半对 {partialCount} · 错误 {wrongCount}
+        </p>
+        {review.suggestion && <p className="text-xs text-zinc-600 dark:text-zinc-400">{review.suggestion}</p>}
+        {review.weakPoints?.length > 0 && (
+          <div className="flex flex-wrap gap-1 justify-center mt-2">
+            {review.weakPoints.map((w, i) => (
+              <span key={i} className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded">薄弱：{w}</span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* 逐题结果（只读） */}
+      <div className="space-y-3 mb-6">
+        {questions.map((q, i) => {
+          const v = q.verdict || "wrong";
+          const isCorrect = v === "correct";
+          const isPartial = v === "partial";
+          const borderColor = isCorrect ? "border-green-200 dark:border-green-800" : isPartial ? "border-amber-300 dark:border-amber-700" : "border-red-200 dark:border-red-800";
+          const bgColor = isCorrect ? "bg-green-50/50 dark:bg-green-900/10" : isPartial ? "bg-amber-50/50 dark:bg-amber-900/10" : "bg-red-50/50 dark:bg-red-900/10";
+          const icon = isCorrect ? "✅" : isPartial ? "⚠️" : "❌";
+
+          return (
+            <div key={i} className={`rounded-xl border overflow-hidden ${bgColor} ${borderColor}`}>
+              <div className="p-4">
+                <div className="flex items-start gap-2 mb-2">
+                  <span className="text-lg">{icon}</span>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-black dark:text-zinc-100">
+                      {i + 1}. {q.question}
+                      {isPartial && q.partialScore != null && (
+                        <span className="ml-2 text-xs text-amber-600 dark:text-amber-400 font-normal">
+                          （得 {Math.round(q.partialScore * 100)}% 分）
+                        </span>
+                      )}
+                    </p>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
+                      <span className="text-xs text-zinc-400">你的答案：{q.userAnswer || "（未作答）"}</span>
+                      {!isCorrect && <span className="text-xs text-green-600 dark:text-green-400">正确答案：{q.answer}</span>}
+                    </div>
+                    {q.feedback && <p className="text-xs text-zinc-500 mt-1 italic">{q.feedback}</p>}
+                  </div>
+                </div>
+              </div>
+              {q.steps && (
+                <details className="border-t border-inherit">
+                  <summary className="px-4 py-2 text-xs font-medium text-indigo-600 dark:text-indigo-400 cursor-pointer hover:bg-white/50 dark:hover:bg-zinc-800/50">
+                    📝 查看详细解题步骤
+                  </summary>
+                  <div className="px-4 pb-4 pt-2 bg-white/50 dark:bg-zinc-800/50">
+                    <MarkdownRenderer content={q.steps} />
+                  </div>
+                </details>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {loading && <LoadingHint text="AI 正在准备..." />}
+
+      {/* 操作按钮 */}
+      <div className="space-y-3">
+        {!hidePractice ? (
+          <button onClick={onPractice} disabled={loading}
+            className="w-full py-3 rounded-xl bg-indigo-600 text-white font-semibold hover:bg-indigo-700 disabled:opacity-50 transition-colors">
+            📝 做针对性练习
+          </button>
+        ) : (
+          wrongCount > 0 ? (
+            <button onClick={onTeachBack} disabled={loading}
+              className="w-full py-3 rounded-xl bg-amber-500 text-white font-semibold hover:bg-amber-600 disabled:opacity-50 transition-colors">
+              🎓 进入以教促学（错题复盘）
+            </button>
+          ) : (
+            <button onClick={onTeachBack} disabled={loading}
+              className="w-full py-3 rounded-xl bg-green-500 text-white font-semibold hover:bg-green-600 disabled:opacity-50 transition-colors">
+              🏆 全对通关！
+            </button>
+          )
+        )}
+
+        {(onReset || onReGrade) && (
+          <div className="flex gap-3">
+            {onReset && (
+              <button onClick={onReset} disabled={loading}
+                className="flex-1 py-3 rounded-lg border border-zinc-300 text-zinc-600 hover:bg-zinc-50 transition-colors text-sm">
+                🔄 重新练习
+              </button>
+            )}
+            {onReGrade && (
+              <button onClick={onReGrade} disabled={loading}
+                className="flex-1 py-3 rounded-lg border border-zinc-300 text-zinc-600 hover:bg-zinc-50 transition-colors text-sm">
+                🔍 重新批改
+              </button>
+            )}
+          </div>
+        )}
+        <button onClick={onRetry} disabled={loading}
+          className="w-full py-3 rounded-lg border border-zinc-300 text-zinc-600 hover:bg-zinc-50 transition-colors">
+          🔄 重新学习本节（从阅读开始）
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ===================== 悬浮 AI 助手（小测/练习时可用）=====================
 function FloatingHelper({ lecture, stage, sectionKey }) {
   const [open, setOpen] = useState(false);
@@ -1037,7 +1354,8 @@ function FloatingHelper({ lecture, stage, sectionKey }) {
     }
   }, [helperMessages, sectionKey]);
 
-  const stageLabel = stage === STAGE.QUIZ ? "小测中" : "练习中";
+  const isExam = stage === STAGE.QUIZ || stage === STAGE.REVIEW || stage === STAGE.PRACTICE || stage === STAGE.PRACTICE_REVIEW;
+  const stageLabel = stage === STAGE.READING ? "阅读中" : isExam ? "考试中" : "学习中";
 
   async function sendHelperMessage() {
     const text = helperInput.trim();
@@ -1057,7 +1375,8 @@ function FloatingHelper({ lecture, stage, sectionKey }) {
           messages: [
             {
               role: "system",
-              content: `你是智学伴的 AI 学习助手。学生正在${stageLabel}。
+              content: isExam
+                ? `你是智学伴的 AI 学习助手。学生正在${stageLabel}。
 
 根据以下授课内容回答学生的问题：
 ${lecture.slice(0, 1500)}
@@ -1067,6 +1386,16 @@ ${lecture.slice(0, 1500)}
 - 不给解题思路或提示
 - 如果学生的问题直接问某道题怎么做、答案是什么，委婉拒绝并建议他先自己思考
 - 回答简洁，50-150字即可
+- 态度友好鼓励`
+                : `你是智学伴的 AI 学习助手。学生正在阅读授课内容。
+
+根据以下授课内容回答学生的问题：
+${lecture.slice(0, 1500)}
+
+要求：
+- 耐心解答任何问题，可以详细解释
+- 可以举例帮助理解
+- 回答清晰有条理
 - 态度友好鼓励`,
             },
             ...updated,
@@ -1094,7 +1423,7 @@ ${lecture.slice(0, 1500)}
             ? "bg-zinc-700 dark:bg-zinc-300 text-white dark:text-zinc-800 rotate-45"
             : "bg-indigo-600 text-white hover:bg-indigo-700 hover:scale-110"
         }`}
-        title="AI 学习助手 — 只解释概念，不透露答案"
+        title={isExam ? "AI 学习助手 — 只解释概念，不透露答案" : "AI 学习助手 — 随时提问"}
       >
         {open ? "+" : "💬"}
         {!open && helperMessages.length > 0 && (
@@ -1117,7 +1446,7 @@ ${lecture.slice(0, 1500)}
             <button onClick={() => setOpen(false)} className="text-indigo-200 hover:text-white text-lg leading-none">✕</button>
           </div>
           <div className="text-xs text-indigo-100 bg-indigo-700 px-4 py-1.5">
-            ⚠️ 只解释概念，不透露答案或解题思路
+            {isExam ? "⚠️ 只解释概念，不透露答案或解题思路" : "💡 遇到不懂的随时问，AI 为你详细解答"}
           </div>
 
           {/* 消息列表 */}
@@ -1196,10 +1525,12 @@ function quizGenPrompt(courseTitle, lecture) {
 课程：${courseTitle}
 授课内容：${lecture.slice(0, 2000)}
 
-出题要求：
-- 题型多样（单选、填空、简答）
-- 覆盖本节核心知识点
-- 难度由浅入深
+⚠️ 出题原则：
+- ⛔ 纯文字题目：不得引用图片、图形、图表、表格。不得出现"如图所示"、"下图"、"看图"、"数一数下面"等需要视觉的表述。所有信息必须用文字描述。
+- 题目自包含：题目本身要说清所有条件和范围，不要让学生猜测"老师想考什么范围"
+- 测试理解而非挖坑：考学生对知识的理解，不要出那种"数学上对但超范围所以判错"的题
+- 如果学生的思路在逻辑上正确，即使和标准答案角度不同，也应当认可
+- 题型多样（单选、填空、简答），难度由浅入深
 - 每道题附上正确答案
 
 返回 JSON（不要 markdown 代码块）：
@@ -1221,6 +1552,8 @@ function practiceGenPrompt(courseTitle, lecture, weakPoints) {
 课程：${courseTitle}
 薄弱点：${weakPoints}
 授课内容：${lecture.slice(0, 1500)}
+
+⚠️ 纯文字题目，不得引用图片、图形，不得出现"如图"、"看图"等表述。
 
 返回 JSON：{"questions":[{"type":"choice|fill|short","question":"...","answer":"..."}]}`;
 }

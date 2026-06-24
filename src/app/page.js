@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 // 首页 —— 智学伴：基于生成式 AI 的异步学习平台
 export default function Home() {
   // 核心功能介绍
@@ -55,9 +57,20 @@ export default function Home() {
           突破时间和空间的限制，让 AI 成为你的私人助教。
           随时学、随时问、随时练——学习不再受制于课堂。
         </p>
-        <button className="bg-white text-purple-700 font-semibold px-8 py-3 rounded-lg hover:bg-purple-50 transition-colors text-lg">
-          开始免费体验
-        </button>
+        <div className="flex gap-4 justify-center">
+          <Link
+            href="/setup"
+            className="bg-white text-purple-700 font-semibold px-8 py-3 rounded-lg hover:bg-purple-50 transition-colors text-lg inline-block"
+          >
+            开始使用 →
+          </Link>
+          <Link
+            href="/learn"
+            className="border border-white/40 text-white font-semibold px-8 py-3 rounded-lg hover:bg-white/10 transition-colors text-lg inline-block"
+          >
+            已有课程
+          </Link>
+        </div>
       </div>
 
       {/* ===== 以教促学：核心亮点 ===== */}
