@@ -2,11 +2,15 @@
   "name": "zhi-xue-ban",
   "version": "0.1.0",
   "private": true,
+  "main": "main.js",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:3000 && electron .\"",
+    "electron:build": "npm run build && electron-builder --win",
+    "electron:start": "next build && electron ."
   },
   "dependencies": {
     "jszip": "^3.10.1",
@@ -24,8 +28,31 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "concurrently": "^10.0.3",
+    "cross-env": "^10.1.0",
+    "electron": "^42.5.0",
+    "electron-builder": "^26.15.3",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
     "tailwindcss": "^4"
+  },
+  "build": {
+    "appId": "com.zhixueban.app",
+    "productName": "智学伴",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      ".next/**/*",
+      "public/**/*",
+      "node_modules/**/*",
+      "package.json",
+      "main.js"
+    ],
+    "win": {
+      "target": "dir",
+      "icon": "public/favicon.ico"
+    },
+    "nsis": null
   }
 }
