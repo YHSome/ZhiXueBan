@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { getExam, updateExam } from "@/lib/exams";
 import { getApiConfig } from "@/lib/api-key";
 import MarkdownRenderer from "@/components/MarkdownRenderer";
+import TokenToast, { streamAiCall } from "@/components/TokenToast";
 
 function typeLabel(type) {
   const map = { choice: "单选题", fill: "填空题", short: "简答题" };
@@ -95,14 +96,12 @@ function TakeExamContent() {
 
     try {
       const config = getApiConfig();
-      const res = await fetch("/api/ai", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          apiKey: config.apiKey, baseUrl: config.baseUrl, model: config.model,
-          messages: [
-            {
-              role: "system",
-              content: `批改试卷。每道题都有标注分值。按照分值加权计算总分。
+      const content = await streamAiCall({
+        apiKey: config.apiKey, baseUrl: config.baseUrl, model: config.model,
+        messages: [
+          {
+            role: "system",
+            content: `批改试卷。每道题都有标注分值。按照分值加权计算总分。
 
 批改规则：
 - 选择/填空题：对即满分，错即0分。字母匹配、意思一致即判对。
@@ -112,22 +111,19 @@ function TakeExamContent() {
 每题返回：verdict("correct"/"wrong"/"partial"), score(0-1, partial时有效), feedback
 
 返回 JSON：{"results":[{"verdict":"correct","score":null,"feedback":"..."}],"totalScore":85,"suggestion":"..."}`,
-            },
-            { role: "user", content: qaText },
-          ],
-          maxTokens: 20000,
-        }),
+          },
+          { role: "user", content: qaText },
+        ],
+        maxTokens: 20000,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
 
       let reviewData;
       try {
         const jsonMatch = data.content.match(/\{[\s\S]*\}/);
-        reviewData = JSON.parse(jsonMatch ? jsonMatch[0] : data.content);
+        reviewData = JSON.parse(jsonMatch ? jsonMatch[0] : content);
       } catch {
         try {
-          reviewData = JSON.parse(data.content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim());
+          reviewData = JSON.parse(content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim());
         } catch {
           throw new Error("批改结果解析失败，请重试");
         }
@@ -195,8 +191,8 @@ function TakeExamContent() {
                       )}
                     </div>
                     <p className="text-xs text-zinc-400 mt-1">你的答案：{q.userAnswer || "（未作答）"}</p>
-                    {v !== "correct" && <p className="text-xs text-green-600 mt-1">正确答案：{q.answer}</p>}
-                    {q.feedback && <p className="text-xs text-zinc-500 mt-1 italic">{q.feedback}</p>}
+                    {v !== "correct" && <div className="text-xs text-green-600 mt-1">正确答案：<MarkdownRenderer content={q.answer} /></div>}
+                    {q.feedback && <div className="text-xs text-zinc-500 mt-1 italic"><MarkdownRenderer content={q.feedback} /></div>}
                   </div>
                 </div>
               </div>
@@ -242,7 +238,7 @@ function TakeExamContent() {
                   <label key={oi} className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors ${q.userAnswer === opt ? "bg-indigo-50 border border-indigo-200" : "hover:bg-zinc-50 border border-transparent"}`}>
                     <input type="radio" name={`q-${i}`} checked={q.userAnswer === opt} onChange={() => updateAnswer(i, opt)}
                       className="text-indigo-600" />
-                    <span className="text-sm text-zinc-700 dark:text-zinc-300">{opt}</span>
+                    <span className="text-sm text-zinc-700 dark:text-zinc-300"><MarkdownRenderer content={String(opt)} /></span>
                   </label>
                 ))}
               </div>
@@ -283,26 +279,22 @@ function ExamFloatingHelper({ exam }) {
 
     try {
       const config = getApiConfig();
-      const res = await fetch("/api/ai", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          apiKey: config.apiKey, baseUrl: config.baseUrl, model: config.model,
-          messages: [
-            {
-              role: "system",
-              content: `你是智学伴的 AI 学习助手。学生正在做一份练习试卷。
+      const reply = await streamAiCall({
+        apiKey: config.apiKey, baseUrl: config.baseUrl, model: config.model,
+        maxTokens: 500,
+        messages: [
+          {
+            role: "system",
+            content: `你是智学伴的 AI 学习助手。学生正在做一份练习试卷。
 
 试卷内容概要：${exam.questions?.slice(0, 3).map((q, i) => `${i + 1}. ${q.question}`).join("\n")}
 
 ⚠️ 规则：只解释概念，不透露答案或解题思路。回答简洁，50-150字。涉及公式用 $...$ 格式，不要用 \\(...\\)。`,
-            },
-            ...updated,
-          ],
-          maxTokens: 500,
-        }),
+          },
+          ...updated,
+        ],
       });
-      const data = await res.json();
-      setMessages([...updated, { role: "assistant", content: data.content || "出错" }]);
+      setMessages([...updated, { role: "assistant", content: reply || "出错" }]);
     } catch (e) {
       setMessages([...updated, { role: "assistant", content: `❌ ${e.message}` }]);
     } finally {
@@ -354,6 +346,7 @@ export default function TakeExamPage() {
   return (
     <Suspense fallback={<div className="text-center py-16 text-zinc-400">加载中...</div>}>
       <TakeExamContent />
+      <TokenToast />
     </Suspense>
   );
 }

@@ -6,6 +6,7 @@ import { getApiConfig } from "@/lib/api-key";
 import { getAllCourses, getCourse, deleteCourse } from "@/lib/courses";
 import { getAllExams, deleteExam } from "@/lib/exams";
 import MarkdownRenderer from "@/components/MarkdownRenderer";
+import TokenToast, { streamAiCall } from "@/components/TokenToast";
 
 // ===================== 阶段枚举 =====================
 const STAGE = {
@@ -89,13 +90,10 @@ function LearnContent() {
   // ---------- AI 调用 ----------
   async function aiCall(messages, maxTokens = 20000) {
     const config = getApiConfig();
-    const res = await fetch("/api/ai", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ apiKey: config.apiKey, baseUrl: config.baseUrl, model: config.model, messages, maxTokens }),
+    return streamAiCall({
+      apiKey: config.apiKey, baseUrl: config.baseUrl, model: config.model,
+      messages, maxTokens,
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "请求失败");
-    return data.content;
   }
 
   function updateCache(key, partial) {
@@ -1019,7 +1017,7 @@ function QuizPanel({ title = "✍️ 小测验", questions, onAnswerChange, onSu
                     <input type="radio" name={`q-${i}`} checked={q.userAnswer === opt} onChange={() => onAnswerChange(i, opt)}
                       disabled={loading}
                       className="text-indigo-600 focus:ring-indigo-500" />
-                    <span className="text-sm text-zinc-700 dark:text-zinc-300">{opt}</span>
+                    <span className="text-sm text-zinc-700 dark:text-zinc-300"><MarkdownRenderer content={String(opt)} /></span>
                   </label>
                 ))}
               </div>
@@ -1191,7 +1189,7 @@ function ReviewPanel({ title = "🔍 批改结果", questions, review, onRetry, 
                   <div className="text-sm font-medium text-black dark:text-zinc-100">{i + 1}. <MarkdownRenderer content={q.question} /></div>
                   <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
                     <span className="text-xs text-zinc-400">你的答案：{q.userAnswer || "（未作答）"}</span>
-                    {!q.correct && <span className="text-xs text-green-600 dark:text-green-400">正确答案：{q.answer}</span>}
+                    {!q.correct && <div className="text-xs text-green-600 dark:text-green-400">正确答案：<MarkdownRenderer content={q.answer} /></div>}
                   </div>
                   {q.feedback && (
                     <p className="text-xs text-zinc-500 mt-1 italic">{q.feedback}</p>
@@ -1285,7 +1283,7 @@ function TeachBackPanel({ teachBack, onSend, loading }) {
           <div className="bg-white dark:bg-zinc-800 rounded-lg p-4 border border-amber-200 dark:border-amber-800">
             <p className="text-sm font-medium text-black dark:text-zinc-100 mb-1">{wrongQ.question}</p>
             <div className="flex gap-4 mt-2">
-              <span className="text-xs text-zinc-400">正确答案：{wrongQ.answer}</span>
+              <span className="text-xs text-zinc-400">正确答案：<MarkdownRenderer content={wrongQ.answer} /></span>
               <span className="text-xs text-red-500">你的答案：{wrongQ.userAnswer || "（未作答）"}</span>
             </div>
           </div>
@@ -1386,9 +1384,9 @@ function QuizReviewCombined({ title, questions, review, onSubmit, onPractice, on
                     </div>
                     <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
                       <span className="text-xs text-zinc-400">你的答案：{q.userAnswer || "（未作答）"}</span>
-                      {!isCorrect && <span className="text-xs text-green-600 dark:text-green-400">正确答案：{q.answer}</span>}
+                      {!isCorrect && <div className="text-xs text-green-600 dark:text-green-400">正确答案：<MarkdownRenderer content={q.answer} /></div>}
                     </div>
-                    {q.feedback && <p className="text-xs text-zinc-500 mt-1 italic">{q.feedback}</p>}
+                    {q.feedback && <div className="text-xs text-zinc-500 mt-1 italic"><MarkdownRenderer content={q.feedback} /></div>}
                   </div>
                 </div>
               </div>
@@ -1494,15 +1492,14 @@ function FloatingHelper({ lecture, stage, sectionKey }) {
 
     try {
       const config = getApiConfig();
-      const res = await fetch("/api/ai", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          apiKey: config.apiKey, baseUrl: config.baseUrl, model: config.model,
-          messages: [
-            {
-              role: "system",
-              content: isExam
-                ? `你是智学伴的 AI 学习助手。学生正在${stageLabel}。
+      const reply = await streamAiCall({
+        apiKey: config.apiKey, baseUrl: config.baseUrl, model: config.model,
+        maxTokens: 500,
+        messages: [
+          {
+            role: "system",
+            content: isExam
+              ? `你是智学伴的 AI 学习助手。学生正在${stageLabel}。
 
 根据以下授课内容回答学生的问题：
 ${lecture.slice(0, 1500)}
@@ -1528,11 +1525,7 @@ ${lecture.slice(0, 1500)}
             },
             ...updated,
           ],
-          maxTokens: 500,
-        }),
       });
-      const data = await res.json();
-      const reply = data.content || "抱歉，出了点问题。";
       setHelperMessages([...updated, { role: "assistant", content: reply }]);
     } catch (e) {
       setHelperMessages([...updated, { role: "assistant", content: `❌ ${e.message}` }]);
@@ -1696,6 +1689,7 @@ export default function LearnPage() {
   return (
     <Suspense fallback={<div className="text-center py-16 text-zinc-400">加载中...</div>}>
       <LearnContent />
+      <TokenToast />
     </Suspense>
   );
 }

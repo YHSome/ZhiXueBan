@@ -1,4 +1,4 @@
-// AI API 代理路由 —— 避免浏览器跨域限制
+// AI API 代理路由 —— 支持 streaming 实时 token 显示
 export async function POST(request) {
   try {
     const { apiKey, baseUrl, model, messages, temperature, maxTokens } = await request.json();
@@ -18,6 +18,7 @@ export async function POST(request) {
         messages,
         temperature: temperature ?? 0.7,
         max_tokens: maxTokens || 4000,
+        stream: true,
       }),
     });
 
@@ -29,8 +30,32 @@ export async function POST(request) {
       );
     }
 
-    const data = await response.json();
-    return Response.json({ content: data.choices[0].message.content });
+    // 流式返回 SSE，透传给客户端
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      async start(controller) {
+        const reader = response.body.getReader();
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            // 直接把原始 SSE 字节传给客户端
+            controller.enqueue(value);
+          }
+        } finally {
+          reader.releaseLock();
+          controller.close();
+        }
+      },
+    });
+
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+      },
+    });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }

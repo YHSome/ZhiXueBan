@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { getApiConfig } from "@/lib/api-key";
 import { getAllCourses } from "@/lib/courses";
 import { addExam } from "@/lib/exams";
+import { streamAiCall } from "@/components/TokenToast";
 
 export default function CreateExamPage() {
   const router = useRouter();
@@ -47,10 +48,7 @@ export default function CreateExamPage() {
       }
 
       const config = getApiConfig();
-      const res = await fetch("/api/ai", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const content = await streamAiCall({
           apiKey: config.apiKey, baseUrl: config.baseUrl, model: config.model,
           messages: [
             {
@@ -77,20 +75,17 @@ export default function CreateExamPage() {
             },
             { role: "user", content: `请生成一份《${title}》试卷，共${questionCount}题，限时${timeLimit}分钟。` },
           ],
-          maxTokens: 20000,
-        }),
+        maxTokens: 20000,
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
 
       let examData;
       try {
-        const jsonMatch = data.content.match(/\{[\s\S]*\}/);
-        examData = JSON.parse(jsonMatch ? jsonMatch[0] : data.content);
+        const jsonMatch = content.match(/\{[\s\S]*\}/);
+        examData = JSON.parse(jsonMatch ? jsonMatch[0] : content);
       } catch {
         try {
-          const cleaned = data.content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+          const cleaned = content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
           examData = JSON.parse(cleaned);
         } catch {
           throw new Error("AI 返回解析失败，请重试");
@@ -126,8 +121,6 @@ export default function CreateExamPage() {
       const formData = new FormData();
       formData.append("file", file);
       const res = await fetch("/api/parse", { method: "POST", body: formData });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
       setImportFileText(data.text);
     } catch (e) {
       setError(e.message);
@@ -147,10 +140,7 @@ export default function CreateExamPage() {
 
     try {
       const config = getApiConfig();
-      const res = await fetch("/api/ai", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const content = await streamAiCall({
           apiKey: config.apiKey, baseUrl: config.baseUrl, model: config.model,
           messages: [
             {
@@ -185,15 +175,12 @@ export default function CreateExamPage() {
                 : `请模仿以下试卷风格出题（${questionCount}道）：\n\n${importFileText.slice(0, 15000)}`,
             },
           ],
-          maxTokens: 20000,
-        }),
+        maxTokens: 20000,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
 
       let examData;
-      try { examData = JSON.parse(data.content.trim()); } catch {
-        examData = JSON.parse(data.content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim());
+      try { examData = JSON.parse(content.trim()); } catch {
+        examData = JSON.parse(content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim());
       }
 
       const exam = addExam({

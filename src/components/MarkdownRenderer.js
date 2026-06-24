@@ -5,14 +5,40 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 
+// 把数学模式内的中文自动包上 \text{...}
+function wrapCjkInMath(text) {
+  // 先处理块级 $$...$$
+  let result = text.replace(/\$\$([\s\S]*?)\$\$/g, (_, body) => `$$${wrapBody(body)}$$`);
+  // 再处理行内 $...$（不匹配 $$）
+  result = result.replace(/(?<!\$)\$(?!\$)([^$\n]+?)(?<!\$)\$(?!\$)/g, (_, body) => `$${wrapBody(body)}$`);
+  return result;
+}
+
+function wrapBody(body) {
+  // 跳过已经在 \text{} 里的内容
+  // 把连续的中文/全角字符用 \text{} 包起来
+  return body.replace(/([一-鿿　-〿＀-￯]+)/g, "\\text{$1}");
+}
+
 export default function MarkdownRenderer({ content }) {
-  // 统一 LaTeX 分隔符：兼容 \(...\) \[...\] → $...$ $$...$$
-  // 注意 JS replace 中 $$ 是特殊模式（插入一个字面 $），所以用 $$$$ 得到两个 $
-  const normalized = content
-    .replace(/\\\[/g, "$$$$")  // \[ → $$
-    .replace(/\\\]/g, "$$$$")  // \] → $$
-    .replace(/\\\(/g, "$$")    // \( → $
-    .replace(/\\\)/g, "$$");   // \) → $
+  // 解码所有 HTML 实体
+  const decoded = content
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#x27;/g, "'");
+
+  // 统一 LaTeX 分隔符
+  let normalized = decoded
+    .replace(/\\\[/g, "\n$$\n")
+    .replace(/\\\]/g, "\n$$\n")
+    .replace(/\\\(/g, "$")
+    .replace(/\\\)/g, "$");
+
+  // 数学模式中的中文自动包 \text{}
+  normalized = wrapCjkInMath(normalized);
 
   return (
     <div className="prose prose-zinc dark:prose-invert max-w-none text-sm leading-relaxed
@@ -29,7 +55,7 @@ export default function MarkdownRenderer({ content }) {
     ">
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath]}
-        rehypePlugins={[rehypeKatex]}
+        rehypePlugins={[[rehypeKatex, { strict: false, throwOnError: false }]]}
         components={{
           // 代码块用深色背景
           pre({ children }) {
