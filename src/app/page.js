@@ -5,44 +5,44 @@ export default function Home() {
   // 核心功能介绍
   const features = [
     {
+      icon: "📖",
+      title: "智能课程生成",
+      desc: "描述想学的内容，或上传 PDF/DOCX/PPTX 文件，AI 自动识别章节并拆分为学习单元",
+    },
+    {
       icon: "🤖",
-      title: "AI 智能答疑",
-      desc: "学习中遇到问题随时提问，支持文字、图片、PDF 上传，AI 即时解答",
+      title: "AI 授课 + 答疑",
+      desc: "AI 讲解每节内容，学习中随时提问。LaTeX 数学公式完美渲染",
     },
     {
-      icon: "📝",
-      title: "AI 自动出题",
-      desc: "根据你的学习内容，AI 自动生成练习题和测验，巩固所学知识",
+      icon: "🎯",
+      title: "闯关式学习",
+      desc: "阅读 → 小测 → AI 批改 → 针对性练习 → 以教促学 → 通关，一步不能少",
     },
     {
-      icon: "🛤️",
-      title: "个性化学习路径",
-      desc: "AI 分析你的水平和目标，为你定制专属的学习计划和进度",
+      icon: "📋",
+      title: "试卷测评",
+      desc: "AI 根据课程自动出卷，或导入已有试卷。限时考试 + AI 批改 + 详细解析",
     },
     {
-      icon: "⏰",
-      title: "真正的异步学习",
-      desc: "不限时间地点，按自己的节奏学习。AI 助教 24 小时在线",
-    },
-    {
-      icon: "📚",
-      title: "智能知识库",
-      desc: "上传图文、PDF、视频等学习资料，AI 自动提取知识点、生成摘要",
+      icon: "📕",
+      title: "错题集",
+      desc: "自动收集所有错题，每道题需向 AI 讲解通过才能消除，真正吃透",
     },
     {
       icon: "📊",
       title: "学习报告",
-      desc: "AI 自动分析你的学习数据，生成薄弱点分析和改进建议",
+      desc: "完成率、均分、薄弱点一目了然，AI 一键生成个性化学习评价",
     },
     {
-      icon: "📋",
-      title: "AI 考试模拟",
-      desc: "模拟真实考试环境，AI 自动批改并给出详细解析",
+      icon: "📚",
+      title: "多格式文件解析",
+      desc: "支持 PDF、DOCX、PPTX、ZIP，智能提取文字，自动整理知识点",
     },
     {
-      icon: "👥",
-      title: "协作讨论",
-      desc: "与同学异步讨论问题，AI 参与引导，碰撞出更多思路",
+      icon: "💻",
+      title: "桌面应用 + 本地存储",
+      desc: "可打包为 Windows 安装包，API Key 和数据只存本地，安全隐私无忧",
     },
   ];
 
@@ -54,7 +54,7 @@ export default function Home() {
           基于生成式 AI 的异步学习方案
         </h2>
         <p className="text-lg text-purple-100 max-w-2xl mx-auto mb-6">
-          突破时间和空间的限制，让 AI 成为你的私人助教。
+          突破时空限制，以教促学，让 AI 成为你的私人助教。
           随时学、随时问、随时练——学习不再受制于课堂。
         </p>
         <div className="flex gap-4 justify-center items-center">
@@ -98,8 +98,8 @@ export default function Home() {
               费曼学习法的 AI 实践——<strong>教给别人，才是最好的学习。</strong>
             </p>
             <p className="text-zinc-500 dark:text-zinc-400 leading-relaxed mb-4">
-              每当你完成练习、订正完错题之后，系统会要求你<strong>向 AI 讲解这道题的解题思路</strong>。
-              AI 会像一位严格的"学生"，不断追问直到确认你真正理解了——讲不清楚的地方，就是你还没学会的地方。
+              完成练习、订正完错题之后，<strong>把解题思路讲给 AI 听</strong>。
+              AI 判断你是真懂还是蒙的——讲清楚的地方才算真掌握，含糊的地方继续练。错题集里的每道题都要讲通才能消除。
             </p>
             <div className="flex flex-wrap gap-3">
               {["订正错题 →", "向AI讲解思路 →", "AI追问验证 →", "真正掌握 ✓"].map((step) => (
@@ -144,9 +144,9 @@ export default function Home() {
         </h3>
         <div className="flex flex-col md:flex-row gap-8 justify-center">
           {[
-            { step: "1", title: "选择或上传课程", desc: "从课程库中选择，或上传你自己的学习资料（图文/PDF/视频）" },
-            { step: "2", title: "AI 生成学习计划", desc: "AI 分析内容，为你生成个性化学习路径和练习" },
-            { step: "3", title: "边学边问边教", desc: "按节奏学习 → AI答疑 → 做练习 → 订正 → 向AI讲解思路" },
+            { step: "1", title: "配置 API Key", desc: "支持 DeepSeek、OpenAI 等，Key 仅存本地" },
+            { step: "2", title: "创建或导入课程", desc: "描述想学的内容，或上传 PDF/DOCX 文件，AI 自动生成课程" },
+            { step: "3", title: "开始闯关学习", desc: "阅读 → 小测 → 练习 → 以教促学 → 通关，AI 全程陪伴" },
           ].map((s) => (
             <div key={s.step} className="flex-1 text-center">
               <div className="w-12 h-12 bg-indigo-600 text-white rounded-full flex items-center justify-center text-xl font-bold mx-auto mb-4">
