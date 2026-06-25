@@ -158,6 +158,16 @@ export default function Home() {
           ))}
         </div>
       </div>
+
+      {/* 底部版本号 + 链接 */}
+      <footer className="text-center mt-16 pb-8">
+        <p className="text-xs text-zinc-300 dark:text-zinc-600 mb-1">v1.0.{16}</p>
+        <p className="text-xs text-zinc-300 dark:text-zinc-600">
+          <a href="https://github.com/YHSome/ZhiXueBan" target="_blank" rel="noopener noreferrer" className="hover:text-zinc-400 dark:hover:text-zinc-500 transition-colors">GitHub</a>
+          <span className="mx-2">·</span>
+          <a href="https://zhixueban.vercel.app" target="_blank" rel="noopener noreferrer" className="hover:text-zinc-400 dark:hover:text-zinc-500 transition-colors">Vercel</a>
+        </p>
+      </footer>
     </div>
   );
 }
