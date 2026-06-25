@@ -1,4 +1,5 @@
 import { Geist, Geist_Mono } from "next/font/google";
+import MistakeBadge from "@/components/MistakeBadge";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -38,11 +39,12 @@ export default function RootLayout({ children }) {
               <a href="/learn" className="px-3 py-1.5 rounded-md text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
                 学习
               </a>
-              <a href="/create" className="px-3 py-1.5 rounded-md text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
-                课程
+              <a href="/mistakes" className="relative px-3 py-1.5 rounded-md text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+                错题集
+                <MistakeBadge />
               </a>
-              <a href="/exam/create" className="px-3 py-1.5 rounded-md text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
-                试卷
+              <a href="/report" className="px-3 py-1.5 rounded-md text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+                学习报告
               </a>
               <a href="/setup" className="ml-2 px-3 py-1.5 rounded-md text-sm bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 transition-colors">
                 ⚙️
