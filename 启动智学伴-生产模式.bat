@@ -1,11 +1,11 @@
 @echo off
 chcp 65001 >nul
-title 智学伴 - 生产模式
+title 知学伴 - 生产模式
 
 cd /d "%~dp0"
 
 echo ==============================
-echo   智学伴 - 编译中...
+echo   知学伴 - 编译中...
 echo ==============================
 call npm run build
 

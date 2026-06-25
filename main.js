@@ -1,4 +1,4 @@
-// Electron 主进程 —— 智学伴桌面应用
+// Electron 主进程 —— 知学伴桌面应用
 const { app, BrowserWindow, shell } = require("electron");
 const path = require("path");
 const { createServer } = require("http");
@@ -28,12 +28,12 @@ async function createWindow() {
     });
 
     server.listen(port, "127.0.0.1", () => {
-      console.log(`智学伴服务已启动: http://127.0.0.1:${port}`);
+      console.log(`知学伴服务已启动: http://127.0.0.1:${port}`);
 
       mainWindow = new BrowserWindow({
         width: 1280,
         height: 800,
-        title: "智学伴",
+        title: "知学伴",
         webPreferences: {
           nodeIntegration: false,
           contextIsolation: true,

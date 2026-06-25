@@ -1,4 +1,4 @@
-# 📚 智学伴
+# 📚 知学伴
 
 基于生成式 AI 的异步学习解决方案——**突破时空限制，以教促学，让 AI 成为你的私人助教。**
 
@@ -92,21 +92,21 @@ npm run build
 node build-exe.js
 
 # 3. 补文件
-xcopy .next release\智学伴\resources\app\.next /E /I /Y
-xcopy next.config.mjs release\智学伴\resources\app\ /Y
+xcopy .next release\知学伴\resources\app\.next /E /I /Y
+xcopy next.config.mjs release\知学伴\resources\app\ /Y
 
 # 4. 生成安装包（需先安装 Inno Setup）
 # 用 Inno Setup 打开 setup.iss → Compile
 ```
 
 输出文件：
-- `release\智学伴\智学伴.exe` — 便携版，双击即用
-- `release\智学伴Setup.exe` — Windows 安装包
+- `release\知学伴\知学伴.exe` — 便携版，双击即用
+- `release\知学伴Setup.exe` — Windows 安装包
 
 ### 一键启动脚本
 
-- `启动智学伴.bat` — 开发模式，自动启动服务 + 打开浏览器
-- `启动智学伴-生产模式.bat` — 先编译优化再启动
+- `启动知学伴.bat` — 开发模式，自动启动服务 + 打开浏览器
+- `启动知学伴-生产模式.bat` — 先编译优化再启动
 
 ## 📁 项目结构
 
@@ -139,7 +139,7 @@ ZhiXueBan/
 ├── main.js                    # Electron 主进程
 ├── build-exe.js               # EXE 手动打包脚本
 ├── setup.iss                  # Inno Setup 打包配置
-├── 启动智学伴.bat              # 一键启动脚本
+├── 启动知学伴.bat              # 一键启动脚本
 └── package.json
 ```
 

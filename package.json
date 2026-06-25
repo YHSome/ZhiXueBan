@@ -38,7 +38,7 @@
   },
   "build": {
     "appId": "com.zhixueban.app",
-    "productName": "智学伴",
+    "productName": "知学伴",
     "directories": {
       "output": "release"
     },
