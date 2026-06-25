@@ -1073,11 +1073,7 @@ function ExamSection() {
       <div className="space-y-3">
         {exams.map((e) => (
           <div key={e.id} onClick={() => {
-            if (e.status === "completed") {
-              alert(`成绩：${e.result?.totalScore || "-"}/100`);
-            } else {
-              router.push(`/exam/take?examId=${e.id}`);
-            }
+            router.push(`/exam/take?examId=${e.id}`)
           }}
             className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-5 hover:shadow-md hover:border-indigo-300 cursor-pointer flex items-center justify-between">
             <div className="flex-1 min-w-0">

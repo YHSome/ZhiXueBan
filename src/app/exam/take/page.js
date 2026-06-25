@@ -27,7 +27,18 @@ function TakeExamContent() {
     if (examId) {
       const e = getExam(examId);
       setExam(e);
-      if (!e || e.status === "completed") return;
+      if (!e) return;
+
+      if (e.status === "completed") {
+        setSubmitted(true);
+        setReview({
+          totalScore: e.result?.totalScore,
+          suggestion: e.result?.suggestion,
+          elapsed: e.result?.elapsed,
+          questions: e.questions,
+        });
+        return;
+      }
 
       const total = (e.timeLimit || 0) * 60;
       if (total === 0) { setTimeLeft(-1); return; } // -1 表示不限时
