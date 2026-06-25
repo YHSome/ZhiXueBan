@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { hasApiKey } from "@/lib/api-key";
-import { callAI } from "@/lib/ai";
+import { hasApiKey, getApiConfig } from "@/lib/api-key";
 import { addCourse } from "@/lib/courses";
+import TokenToast from "@/components/TokenToast";
+import { streamAiCall } from "@/components/TokenToast";
 
 export default function CreatePage() {
   const router = useRouter();
@@ -47,41 +48,24 @@ export default function CreatePage() {
     setGenerating(true);
     setError(null);
     try {
-      const result = await callAI({
+      const config = getApiConfig();
+      const result = await streamAiCall({
+        apiKey: config.apiKey, baseUrl: config.baseUrl, model: config.model,
         messages: [
           {
             role: "system",
             content: `你是一个课程设计专家。用户会描述想学什么，你需要生成课程章节结构。
 
 返回格式必须是严格的 JSON（不要 markdown 代码块）：
-{
-  "courseTitle": "课程标题",
-  "chapters": [
-    {
-      "title": "章节标题",
-      "sections": [
-        { "title": "小节标题" }
-      ]
-    }
-  ]
-}
+{"courseTitle":"课程标题","chapters":[{"title":"章节标题","sections":[{"title":"小节标题"}]}]}
 
-要求：
-- 章节数量 3-8 个，根据内容复杂度决定
-- 每章 2-5 个小节
-- 覆盖用户描述的核心主题
-- 章节按逻辑顺序排列`,
+要求：章节数量 3-8 个，每章 2-5 个小节，覆盖用户描述的核心主题，按逻辑顺序排列`,
           },
-          {
-            role: "user",
-            content: `我想学习：${describeInput}`,
-          },
+          { role: "user", content: `我想学习：${describeInput}` },
         ],
-        temperature: 0.7,
-        maxTokens: 4000,
+        maxTokens: 20000,
       });
 
-      // 尝试解析 JSON
       let data;
       try {
         const jsonMatch = result.match(/\{[\s\S]*\}/);
@@ -141,42 +125,21 @@ export default function CreatePage() {
       setFileText(text); // 保存完整文本
 
       // AI 识别章节
-      const result = await callAI({
+      const config2 = getApiConfig();
+      const result = await streamAiCall({
+        apiKey: config2.apiKey, baseUrl: config2.baseUrl, model: config2.model,
         messages: [
           {
             role: "system",
             content: `你是一个文档分析专家。分析以下文档内容，识别出章节结构。
 
-返回格式必须是严格的 JSON（不要 markdown 代码块）：
-{
-  "courseTitle": "课程标题（从文档中提取或推断）",
-  "chapters": [
-    {
-      "title": "章节标题",
-      "summary": "本章内容概述（30字以内）",
-      "sections": [
-        { "title": "小节标题" }
-      ],
-      "hasGaps": false,  // 是否有内容残缺、不完整
-      "gapDescription": "" // 如有残缺，描述缺失了什么，为空字符串表示没有残缺
-    }
-  ]
-}
+返回 JSON：{"courseTitle":"标题","chapters":[{"title":"章","summary":"概述","sections":[{"title":"节"}],"hasGaps":false,"gapDescription":""}]}
 
-要求：
-- 识别文档中的章节标题模式（如"第X章"、"Chapter X"、大标题等）
-- 每个主要章节拆分为独立单元
-- 标注内容是否有残缺、不清晰、断断续续的地方
-- 如有残缺，描述具体缺失了什么内容
-- 如果文档没有明显的章节结构，按知识点自行划分`,
+要求：识别章节标题模式，标注内容残缺，无章节结构则按知识点划分`,
           },
-          {
-            role: "user",
-            content: `请分析以下文档，识别章节结构：\n\n${textToSend}`,
-          },
+          { role: "user", content: `请分析以下文档，识别章节结构：\n\n${textToSend}` },
         ],
-        temperature: 0.3,
-        maxTokens: 16000,
+        maxTokens: 20000,
       });
 
       // 尝试多种方式解析 JSON（AI 可能返回不完整或格式异常的回复）
@@ -507,6 +470,7 @@ export default function CreatePage() {
           )}
         </div>
       )}
+      <TokenToast />
     </div>
   );
 }

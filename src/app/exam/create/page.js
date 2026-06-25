@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { getApiConfig } from "@/lib/api-key";
 import { getAllCourses } from "@/lib/courses";
 import { addExam } from "@/lib/exams";
-import { streamAiCall } from "@/components/TokenToast";
+import TokenToast, { streamAiCall } from "@/components/TokenToast";
 
 export default function CreateExamPage() {
   const router = useRouter();
@@ -351,6 +351,7 @@ export default function CreateExamPage() {
           </>
         )}
       </div>
+      <TokenToast />
     </div>
   );
 }

@@ -48,7 +48,8 @@ function TakeExamContent() {
         // 已有开始时间 → 恢复计时
         const extraElapsed = Math.floor((Date.now() - e.startedAt) / 1000);
         const totalElapsed = savedElapsed + extraElapsed;
-        setTimeLeft(Math.max(0, total - totalElapsed));
+        const remaining = Math.max(0, total - totalElapsed);
+        setTimeLeft(remaining);
       } else {
         // 首次进入 → 记录开始时间
         const now = Date.now();
@@ -78,12 +79,13 @@ function TakeExamContent() {
     return () => clearInterval(timer);
   }, [exam, timeLeft, submitted]);
 
-  // 自动提交
+  // 自动提交（exam 和 timeLeft 任一更新都可能触发）
   useEffect(() => {
-    if (timeLeft === 0 && exam && !submitted) {
+    if (exam && exam.status === "in_progress" && exam.timeLimit > 0 && timeLeft === 0 && !submitted) {
+      setLoading(true);
       handleSubmit();
     }
-  }, [timeLeft]);
+  }, [exam, timeLeft, submitted]);
 
   function updateAnswer(qi, val) {
     if (!exam || submitted) return;

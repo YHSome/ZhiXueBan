@@ -1043,10 +1043,25 @@ function QuizPanel({ title = "✍️ 小测验", questions, onAnswerChange, onSu
 function ExamSection() {
   const router = useRouter();
   const [exams, setExams] = useState([]);
+  const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
     setExams(getAllExams());
+    // 每秒刷新以更新进行中的倒计时
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
   }, []);
+
+  function getRemainingInfo(exam) {
+    if (exam.status !== "in_progress" || !exam.timeLimit) return null;
+    const total = exam.timeLimit * 60;
+    const elapsed = (exam.elapsedSeconds || 0) + (exam.startedAt ? Math.floor((now - exam.startedAt) / 1000) : 0);
+    const remaining = Math.max(0, total - elapsed);
+    const mins = Math.floor(remaining / 60);
+    const secs = remaining % 60;
+    const urgent = remaining < 300;
+    return { mins, secs, urgent, remaining };
+  }
 
   if (exams.length === 0) {
     return (
@@ -1083,6 +1098,21 @@ function ExamSection() {
                 <span>·</span>
                 <span>{e.questions?.length || 0} 题</span>
                 <span>·</span>
+                {e.status === "in_progress" && e.timeLimit > 0 ? (
+                  (() => {
+                    const info = getRemainingInfo(e);
+                    return info ? (
+                      <>
+                        <span>·</span>
+                        <span className={`font-mono ${info.urgent ? "text-red-500 animate-pulse" : "text-amber-500"}`}>
+                          ⏱ 剩余 {info.mins}:{String(info.secs).padStart(2, "0")}
+                        </span>
+                      </>
+                    ) : <span>·</span>;
+                  })()
+                ) : (
+                  <span>·</span>
+                )}
                 <span>{e.timeLimit > 0 ? `${e.timeLimit} 分钟` : "不限时"}</span>
                 {e.status === "completed" && e.result && (
                   <>
@@ -1461,10 +1491,16 @@ function FloatingHelper({ lecture, stage, sectionKey }) {
     helperEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [helperMessages]);
 
-  // 加载该小节的助手对话历史
+  // 小节切换时：加载该节的对话记录，重置输入和窗口状态
   useEffect(() => {
     const saved = localStorage.getItem(`zhixueban-helper-${sectionKey}`);
-    if (saved) { try { setHelperMessages(JSON.parse(saved)); } catch {} }
+    if (saved) {
+      try { setHelperMessages(JSON.parse(saved)); } catch { setHelperMessages([]); }
+    } else {
+      setHelperMessages([]);
+    }
+    setHelperInput("");
+    setOpen(false);
   }, [sectionKey]);
 
   // 持久化

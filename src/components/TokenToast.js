@@ -4,98 +4,138 @@ import { useState, useEffect } from "react";
 
 // 全局状态：单例
 let listeners = [];
+let currentAbortController = null;
+
 function notify(state) { listeners.forEach((fn) => fn(state)); }
 
 export function updateTokenToast(state) {
   notify(state);
 }
 
+// 单击 token 球停止当前请求
+export function abortCurrentCall() {
+  if (currentAbortController) {
+    currentAbortController.abort();
+    currentAbortController = null;
+    notify({ phase: "done", bytes: 0, usage: null, stopped: true });
+  }
+}
+
 // 通用流式 AI 调用，自动显示 token 球
 export async function streamAiCall({ apiKey, baseUrl, model, messages, maxTokens = 20000 }) {
+  const controller = new AbortController();
+  currentAbortController = controller;
   updateTokenToast({ phase: "loading", bytes: 0 });
-  const res = await fetch("/api/ai", {
-    method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ apiKey, baseUrl, model, messages, maxTokens }),
-  });
-  if (!res.ok) {
-    updateTokenToast(null);
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.error || "请求失败");
-  }
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
+
   let fullContent = "";
   let totalBytes = 0;
   let buffer = "";
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    totalBytes += value.length;
-    buffer += decoder.decode(value, { stream: true });
-    updateTokenToast({ phase: "loading", bytes: totalBytes });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() || "";
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed || !trimmed.startsWith("data: ")) continue;
-      const jsonStr = trimmed.slice(6);
-      if (jsonStr === "[DONE]") continue;
-      try {
-        const chunk = JSON.parse(jsonStr);
-        if (chunk.choices?.[0]?.delta?.content) fullContent += chunk.choices[0].delta.content;
-        if (chunk.usage) updateTokenToast({ phase: "done", bytes: totalBytes, usage: chunk.usage });
-      } catch {}
+  let aborted = false;
+
+  try {
+    const res = await fetch("/api/ai", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ apiKey, baseUrl, model, messages, maxTokens }),
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      updateTokenToast(null);
+      currentAbortController = null;
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || "请求失败");
     }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      totalBytes += value.length;
+      buffer += decoder.decode(value, { stream: true });
+      updateTokenToast({ phase: "loading", bytes: totalBytes });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || !trimmed.startsWith("data: ")) continue;
+        const jsonStr = trimmed.slice(6);
+        if (jsonStr === "[DONE]") continue;
+        try {
+          const chunk = JSON.parse(jsonStr);
+          if (chunk.choices?.[0]?.delta?.content) fullContent += chunk.choices[0].delta.content;
+          if (chunk.usage) updateTokenToast({ phase: "done", bytes: totalBytes, usage: chunk.usage });
+        } catch {}
+      }
+    }
+    // 流结束后处理残余 buffer（usage 通常在最后一块）
+    if (buffer.trim().startsWith("data: ")) {
+      const jsonStr = buffer.trim().slice(6);
+      if (jsonStr !== "[DONE]") {
+        try {
+          const chunk = JSON.parse(jsonStr);
+          if (chunk.usage) updateTokenToast({ phase: "done", bytes: totalBytes, usage: chunk.usage });
+        } catch {}
+      }
+    }
+  } catch (e) {
+    if (e.name === "AbortError") {
+      aborted = true;
+    } else {
+      throw e;
+    }
+  } finally {
+    currentAbortController = null;
   }
-  setTimeout(() => updateTokenToast(null), 2000);
+
   return fullContent;
 }
 
 export default function TokenToast() {
   const [state, setState] = useState(null);
-  const [visible, setVisible] = useState(false);
 
   useEffect(() => {
     listeners.push(setState);
     return () => { listeners = listeners.filter((fn) => fn !== setState); };
   }, []);
 
-  // state 变化时控制显隐动画
+  // 3 秒无操作后自动清空
   useEffect(() => {
-    if (state && state.phase === "loading") {
-      // 请求开始：无延迟，直接出现
-      setVisible(true);
-    } else if (state && state.phase === "done") {
-      // 请求完成：停 1.5 秒再隐藏
-      const timer = setTimeout(() => setVisible(false), 1500);
-      return () => clearTimeout(timer);
-    } else {
-      setVisible(false);
-    }
+    if (!state || state.phase !== "done") return;
+    const timer = setTimeout(() => setState(null), 3000);
+    return () => clearTimeout(timer);
   }, [state]);
 
-  // 显示 token 数（字节 → 约 1/4 转 token 估算，等 usage 回来用精确值）
+  const active = !!state;
   const bytes = state?.bytes || 0;
   const approxTokens = state?.usage
     ? state.usage.total_tokens
-    : Math.round(bytes / 4); // SSE 开销大，粗略估算
+    : Math.round(bytes / 4);
+  const isLoading = state?.phase === "loading";
 
   return (
     <div
       className={`fixed z-[110] transition-all duration-400 ease-out pointer-events-none ${
-        visible ? "opacity-100 translate-x-0" : "opacity-0 translate-x-20"
+        active ? "opacity-100 translate-x-0" : "opacity-0 translate-x-20"
       }`}
       style={{ bottom: "1.5rem", right: "6rem" }}
     >
-      <div className="bg-indigo-600 text-white rounded-full shadow-lg
-        flex items-center justify-center font-mono font-bold
-        w-14 h-14"
+      <div
+        onClick={isLoading ? abortCurrentCall : undefined}
+        title={isLoading ? "单击停止生成" : undefined}
+        style={{ pointerEvents: isLoading ? "auto" : "none" }}
+        className={`text-white rounded-full shadow-lg flex items-center justify-center font-mono font-bold w-14 h-14 transition-colors ${
+          isLoading ? "bg-indigo-600 cursor-pointer hover:bg-red-500" : "bg-indigo-400 cursor-default"
+        }`}
       >
         <div className="flex flex-col items-center leading-none">
-          <span className={`text-sm ${state?.phase === "loading" ? "animate-pulse" : ""}`}>
+          <span className={`text-sm ${isLoading ? "animate-pulse" : ""}`}>
             {approxTokens.toLocaleString()}
           </span>
           <span className="text-[9px] opacity-60 font-normal -mt-0.5">token</span>
+          {state?.phase === "done" && state.usage && bytes > 0 && (
+            <span className="text-[8px] opacity-50 font-normal mt-0.5">
+              利用率 {Math.round((1 - state.usage.total_tokens / Math.max(1, bytes / 4)) * 100)}%
+            </span>
+          )}
         </div>
       </div>
     </div>
