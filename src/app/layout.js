@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-  title: "知学伴 - 基于生成式 AI 的异步学习方案",
+  title: "智学伴 - 基于生成式 AI 的异步学习方案",
   description: "突破时空限制，AI 驱动的个性化异步学习平台",
 };
 
@@ -31,7 +31,7 @@ export default function RootLayout({ children }) {
         {/* 顶部导航栏 */}
         <header className="bg-white dark:bg-black border-b border-zinc-200 dark:border-zinc-800">
           <div className="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
-            <h1 className="text-xl font-bold text-blue-600">📚 知学伴</h1>
+            <h1 className="text-xl font-bold text-blue-600">📚 智学伴</h1>
             <nav className="flex items-center gap-1">
               <a href="/" className="px-3 py-1.5 rounded-md text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
                 首页

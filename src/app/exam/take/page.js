@@ -298,7 +298,7 @@ function ExamFloatingHelper({ exam }) {
         messages: [
           {
             role: "system",
-            content: `你是知学伴的 AI 学习助手。学生正在做一份练习试卷。
+            content: `你是智学伴的 AI 学习助手。学生正在做一份练习试卷。
 
 试卷内容概要：${exam.questions?.slice(0, 3).map((q, i) => `${i + 1}. ${q.question}`).join("\n")}
 

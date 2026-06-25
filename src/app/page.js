@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-// 首页 —— 知学伴：基于生成式 AI 的异步学习平台
+// 首页 —— 智学伴：基于生成式 AI 的异步学习平台
 export default function Home() {
   // 核心功能介绍
   const features = [
@@ -118,7 +118,7 @@ export default function Home() {
 
       {/* 核心功能 */}
       <h3 className="text-2xl font-bold text-center mb-8 text-black dark:text-zinc-50">
-        为什么选择知学伴
+        为什么选择智学伴
       </h3>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16">
         {features.map((f) => (

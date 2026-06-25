@@ -1,10 +1,10 @@
-// 手动打包知学伴 EXE —— 零网络依赖
+// 手动打包智学伴 EXE —— 零网络依赖
 const fs = require("fs");
 const path = require("path");
 
 const root = __dirname;
 const electronDist = path.join(root, "node_modules/electron/dist");
-const releaseDir = path.join(root, "release/知学伴");
+const releaseDir = path.join(root, "release/智学伴");
 
 // 1. 创建输出目录
 fs.rmSync(releaseDir, { recursive: true, force: true });
@@ -96,12 +96,12 @@ function copyDirShallow(src, dest) {
   }
 }
 
-// 6. 重命名 electron.exe → 知学伴.exe
+// 6. 重命名 electron.exe → 智学伴.exe
 fs.renameSync(
   path.join(releaseDir, "electron.exe"),
-  path.join(releaseDir, "知学伴.exe")
+  path.join(releaseDir, "智学伴.exe")
 );
 
 console.log("✅ 打包完成！");
 console.log(`   输出目录：${releaseDir}`);
-console.log("   双击 知学伴.exe 启动");
+console.log("   双击 智学伴.exe 启动");

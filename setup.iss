@@ -1,22 +1,22 @@
-; 知学伴 Windows 安装程序
+; 智学伴 Windows 安装程序
 [Setup]
-AppName=知学伴
+AppName=智学伴
 AppVersion=1.0
-DefaultDirName={autopf}\知学伴
-DefaultGroupName=知学伴
+DefaultDirName={autopf}\智学伴
+DefaultGroupName=智学伴
 OutputDir=release
-OutputBaseFilename=知学伴Setup
+OutputBaseFilename=智学伴Setup
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
-UninstallDisplayName=知学伴
+UninstallDisplayName=智学伴
 
 [Files]
-Source: "release\知学伴\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "release\智学伴\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{autoprograms}\知学伴"; Filename: "{app}\知学伴.exe"
-Name: "{commondesktop}\知学伴"; Filename: "{app}\知学伴.exe"
+Name: "{autoprograms}\智学伴"; Filename: "{app}\智学伴.exe"
+Name: "{commondesktop}\智学伴"; Filename: "{app}\智学伴.exe"
 
 [Run]
-Filename: "{app}\知学伴.exe"; Description: "启动知学伴"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\智学伴.exe"; Description: "启动智学伴"; Flags: nowait postinstall skipifsilent
