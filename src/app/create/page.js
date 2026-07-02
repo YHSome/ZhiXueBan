@@ -21,6 +21,7 @@ export default function CreatePage() {
   const [chapters, setChapters] = useState(null); // AI 识别出的章节
   const [editingChapter, setEditingChapter] = useState(null); // 正在编辑的章节索引
   const [error, setError] = useState(null);
+  const [fileRequirements, setFileRequirements] = useState(""); // 文件上传附加需求
   const fileInputRef = useRef(null);
 
   useEffect(() => { setMounted(true); }, []);
@@ -59,7 +60,7 @@ export default function CreatePage() {
 返回格式必须是严格的 JSON（不要 markdown 代码块）：
 {"courseTitle":"课程标题","chapters":[{"title":"章节标题","sections":[{"title":"小节标题"}]}]}
 
-要求：章节数量 3-8 个，每章 2-5 个小节，覆盖用户描述的核心主题，按逻辑顺序排列`,
+要求：章节数量 3-8 个，每章必须 2-5 个小节（sections 不能为空），覆盖用户核心主题。若用户要求简洁，减少章节数量而非小节内容。章节标题须含主题如"第一章：勾股定理"，禁止纯序号`,
           },
           { role: "user", content: `我想学习：${describeInput}` },
         ],
@@ -79,6 +80,10 @@ export default function CreatePage() {
         }
       }
 
+      data.chapters = (data.chapters || []).map((ch) => ({
+        ...ch,
+        sections: (ch.sections || []).filter((s) => s.title && s.title.trim()),
+      }));
       setChapters(data);
     } catch (e) {
       setError(e.message);
@@ -122,54 +127,61 @@ export default function CreatePage() {
         ? text.slice(0, maxLen) + `\n\n[文件共 ${text.length} 字符，以上为前 ${maxLen} 字符，后续内容 AI 已省略]`
         : text;
 
-      setFileText(text); // 保存完整文本
+      setFileText(text);
+    } catch (e) {
+      setParseError(`${e.message}`);
+    } finally {
+      setParsing(false);
+    }
+  }
 
-      // AI 识别章节
-      const config2 = getApiConfig();
+  // 启动 AI 解析文件章节
+  async function handleFileAnalyze() {
+    if (!fileText) return;
+    setParsing(true);
+    setParseError(null);
+    try {
+      const maxLen = 80000;
+      const textToSend = fileText.length > maxLen
+        ? fileText.slice(0, maxLen) + `\n\n[文件共 ${fileText.length} 字符，以上为前 ${maxLen} 字符，后续内容 AI 已省略]`
+        : fileText;
+
+      const config = getApiConfig();
       const result = await streamAiCall({
-        apiKey: config2.apiKey, baseUrl: config2.baseUrl, model: config2.model,
+        apiKey: config.apiKey, baseUrl: config.baseUrl, model: config.model,
         messages: [
           {
             role: "system",
             content: `你是一个文档分析专家。分析以下文档内容，识别出章节结构。
 
-返回 JSON：{"courseTitle":"标题","chapters":[{"title":"章","summary":"概述","sections":[{"title":"节"}],"hasGaps":false,"gapDescription":""}]}
+返回 JSON：{"courseTitle":"标题","chapters":[{"title":"章","summary":"概述","sections":[{"title":"节1"},{"title":"节2"}],"hasGaps":false,"gapDescription":""}]}
 
-要求：识别章节标题模式，标注内容残缺，无章节结构则按知识点划分`,
+要求：识别章节标题模式（须含主题，如"第一章：勾股定理"），每章必须拆分为 2-5 个小节。若用户要求简洁，应减少章节数量（合并相近主题），而非缩减小节内容或留空标题。${fileRequirements.trim() ? `用户额外需求：${fileRequirements.trim()}` : ""}`,
           },
           { role: "user", content: `请分析以下文档，识别章节结构：\n\n${textToSend}` },
         ],
         maxTokens: 20000,
       });
 
-      // 尝试多种方式解析 JSON（AI 可能返回不完整或格式异常的回复）
       let data;
       try {
-        // 先找 JSON 对象（处理 AI 在 JSON 前后加文字的情况）
         const jsonMatch = result.match(/\{[\s\S]*\}/);
-        const jsonStr = jsonMatch ? jsonMatch[0] : result;
-        data = JSON.parse(jsonStr);
+        data = JSON.parse(jsonMatch ? jsonMatch[0] : result);
       } catch {
-        try {
-          const cleaned = result.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-          data = JSON.parse(cleaned);
-        } catch {
-          throw new Error("AI 返回了不完整的回复，请重试或缩短文件后再试");
-        }
+        const cleaned = result.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+        data = JSON.parse(cleaned);
       }
 
       if (!data.chapters || data.chapters.length === 0) {
-        setParseError("AI 未能识别出章节结构，请确认文件包含清晰的内容或尝试用「描述生成」方式创建课程");
-        setParsing(false);
+        setParseError("AI 未能识别出章节结构，请尝试用「描述生成」方式创建课程");
         return;
       }
 
-      // 标记有残缺的章节
       const chaptersWithGaps = (data.chapters || []).map((ch) => ({
         ...ch,
+        sections: (ch.sections || []).filter((s) => s.title && s.title.trim()),
         hasGaps: ch.hasGaps !== false && !!ch.gapDescription,
       }));
-
       setChapters({ ...data, chapters: chaptersWithGaps });
     } catch (e) {
       setParseError(`${e.message}`);
@@ -455,7 +467,38 @@ export default function CreatePage() {
             </div>
           )}
 
-          {fileName && !parsing && !chapters && !parseError && (
+          {fileText && !chapters && (
+            <div className="mt-4">
+              <input
+                type="text"
+                value={fileRequirements}
+                onChange={(e) => setFileRequirements(e.target.value)}
+                disabled={parsing}
+                placeholder="附加需求：如更简要、更详细、预计学习时间等（可选）"
+                className="w-full px-4 py-2.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm text-black dark:text-zinc-100 focus:ring-2 focus:ring-indigo-500 outline-none disabled:opacity-50"
+              />
+            </div>
+          )}
+
+          {fileName && fileText && !parsing && !chapters && !parseError && (
+            <div className="mt-4 p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg flex items-center justify-between">
+              <p className="text-sm text-indigo-600 dark:text-indigo-400">
+                📄 {fileName} — 已解析就绪
+              </p>
+              <div className="flex items-center gap-3">
+                <button onClick={() => { setFileName(""); setFileText(null); setFileRequirements(""); }}
+                  className="text-zinc-400 hover:text-red-500 text-lg leading-none" title="删除文件">
+                  ✕
+                </button>
+                <button onClick={handleFileAnalyze}
+                  className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm hover:bg-indigo-700 transition-colors">
+                  🤖 AI 开始分析
+                </button>
+              </div>
+            </div>
+          )}
+
+          {fileName && !fileText && !parsing && !chapters && !parseError && (
             <div className="mt-4 p-4 bg-zinc-50 dark:bg-zinc-800 rounded-lg">
               <p className="text-zinc-600 dark:text-zinc-400">
                 📄 {fileName} — 已就绪，等待 AI 分析...

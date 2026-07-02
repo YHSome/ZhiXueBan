@@ -5,9 +5,12 @@ import { useState, useEffect, useRef } from "react";
 // 全局状态：单例
 let listeners = [];
 let currentAbortController = null;
+let tokenToastSuppressed = false;
+export function suppressTokenToast(v) { tokenToastSuppressed = v; }
 function notify(state) { listeners.forEach((fn) => fn(state)); }
 
 export function updateTokenToast(state) {
+  if (tokenToastSuppressed) return;
   notify(state ? { ...state, _t: Date.now() } : null);
 }
 
@@ -65,14 +68,19 @@ export async function streamAiCall({ apiKey, baseUrl, model, messages, maxTokens
         } catch {}
       }
     }
-    if (buffer.trim().startsWith("data: ")) {
-      const jsonStr = buffer.trim().slice(6);
-      if (jsonStr !== "[DONE]") {
-        try {
-          const chunk = JSON.parse(jsonStr);
-          if (chunk.usage) { updateTokenToast({ phase: "done", bytes: totalBytes, usage: chunk.usage }); gotUsage = true; }
-        } catch {}
-      }
+    // flush decoder 内部缓冲，处理所有剩余 SSE 行
+    buffer += decoder.decode();
+    const finalLines = buffer.split("\n");
+    for (const line of finalLines) {
+      const trimmed = line.trim();
+      if (!trimmed || !trimmed.startsWith("data: ")) continue;
+      const jsonStr = trimmed.slice(6);
+      if (jsonStr === "[DONE]") continue;
+      try {
+        const chunk = JSON.parse(jsonStr);
+        if (chunk.choices?.[0]?.delta?.content) fullContent += chunk.choices[0].delta.content;
+        if (chunk.usage) { updateTokenToast({ phase: "done", bytes: totalBytes, usage: chunk.usage }); gotUsage = true; }
+      } catch {}
     }
     if (!gotUsage) updateTokenToast({ phase: "done", bytes: totalBytes });
   } catch (e) {

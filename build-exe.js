@@ -96,7 +96,21 @@ function copyDirShallow(src, dest) {
   }
 }
 
-// 6. 重命名 electron.exe → 智学伴.exe
+// 6. 修复 pdfjs-dist worker 路径（Next.js bundle 会从 node_modules 和 .next/server/chunks 两处找）
+const workerSrc = path.join(root, "node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs");
+if (fs.existsSync(workerSrc)) {
+  // 路径1：Next.js chunk 动态 import 的路径
+  const workerDest1 = path.join(appDir, "node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs");
+  fs.mkdirSync(path.dirname(workerDest1), { recursive: true });
+  fs.copyFileSync(workerSrc, workerDest1);
+  // 路径2：.next 编译产物可能引用的路径
+  const workerDest2 = path.join(appDir, ".next/server/chunks/pdf.worker.mjs");
+  fs.mkdirSync(path.dirname(workerDest2), { recursive: true });
+  fs.copyFileSync(workerSrc, workerDest2);
+  console.log("已复制 pdf.worker.mjs");
+}
+
+// 7. 重命名 electron.exe → 智学伴.exe
 fs.renameSync(
   path.join(releaseDir, "electron.exe"),
   path.join(releaseDir, "智学伴.exe")

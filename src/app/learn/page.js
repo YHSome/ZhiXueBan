@@ -6,7 +6,7 @@ import { getApiConfig } from "@/lib/api-key";
 import { getAllCourses, getCourse, deleteCourse } from "@/lib/courses";
 import { getAllExams, deleteExam } from "@/lib/exams";
 import MarkdownRenderer from "@/components/MarkdownRenderer";
-import TokenToast, { streamAiCall } from "@/components/TokenToast";
+import TokenToast, { streamAiCall, updateTokenToast } from "@/components/TokenToast";
 
 // ===================== 阶段枚举 =====================
 const STAGE = {
@@ -31,8 +31,18 @@ function LearnContent() {
   const [activeChapter, setActiveChapter] = useState(null);
   const [activeSection, setActiveSection] = useState(null);
   const [sectionCache, setSectionCache] = useState({});
-  const [loading, setLoading] = useState(false);
+  const [prefillLoading, setPrefillLoading] = useState(false);
   const chatEndRef = useRef(null);
+
+  // 分节 loading：不用全局锁，当前小节加载中才算
+  function isLoading() {
+    const cache = activeCache();
+    return cache?._loading === true;
+  }
+  function setCurrentLoading(v, ci, si) {
+    const key = ci != null ? sectionKey(ci, si) : activeKey();
+    if (key) updateCache(key, { _loading: v });
+  }
 
   // ---------- 工具函数 ----------
   function sectionKey(ci, si) { return `${ci}-${si}`; }
@@ -88,7 +98,7 @@ function LearnContent() {
   }, [sectionCache]);
 
   // ---------- AI 调用 ----------
-  async function aiCall(messages, maxTokens = 20000) {
+  async function aiCall(messages, maxTokens = 40000) {
     const config = getApiConfig();
     return streamAiCall({
       apiKey: config.apiKey, baseUrl: config.baseUrl, model: config.model,
@@ -116,12 +126,15 @@ function LearnContent() {
     // 已完成 → 直接显示
     if (cache?.stage === STAGE.COMPLETED) return;
 
-    // 已有讲义 → 恢复阶段
-    if (cache?.lecture && cache?.stage) return;
+    // 已有讲义（预加载或之前生成过）→ 直接显示，不调 AI
+    if (cache?.lecture) {
+      updateCache(key, { stage: STAGE.READING });
+      return;
+    }
 
-    // 立刻显示阅读框架，避免黑屏等待
+    // 没有讲义 → AI 生成
     updateCache(key, { stage: STAGE.READING });
-    setLoading(true);
+    setCurrentLoading(true, ci, si);
     const chapter = course.chapters[ci];
     const section = chapter.sections[si];
     try {
@@ -135,7 +148,7 @@ function LearnContent() {
     } catch (e) {
       updateCache(key, { lecture: `❌ 生成失败：${e.message}` });
     } finally {
-      setLoading(false);
+      setCurrentLoading(false);
     }
   }
 
@@ -145,12 +158,12 @@ function LearnContent() {
     const cache = activeCache();
     // 已有小测数据且不是错误 → 直接恢复
     if (cache.quiz?.questions?.length > 0 && cache.quiz.questions[0]?.type !== "error") {
-      setLoading(false);
+      setCurrentLoading(false);
       updateCache(key, { stage: STAGE.QUIZ });
       return;
     }
     updateCache(key, { stage: STAGE.QUIZ });
-    setLoading(true);
+    setCurrentLoading(true);
     try {
       const raw = await aiCall([
         { role: "system", content: quizGenPrompt(course.courseTitle, cache.lecture) },
@@ -179,7 +192,7 @@ function LearnContent() {
     } catch (e) {
       updateCache(key, { quiz: { questions: [{ type: "error", question: `出题失败：${e.message}`, answer: "" }], }, stage: STAGE.QUIZ });
     } finally {
-      setLoading(false);
+      setCurrentLoading(false);
     }
   }
 
@@ -189,12 +202,12 @@ function LearnContent() {
     const cache = activeCache();
     // 已批改过且非强制 → 直接恢复
     if (!force && cache.review) {
-      setLoading(false);
+      setCurrentLoading(false);
       updateCache(key, { stage: STAGE.REVIEW });
       return;
     }
     const questions = cache.quiz?.questions || [];
-    setLoading(true);
+    setCurrentLoading(true);
 
     // 构造批改 prompt（含客户端预判提示）
     const qaText = questions.map((q, i) => {
@@ -300,7 +313,7 @@ function LearnContent() {
     } catch (e) {
       updateCache(key, { review: { score: 0, weakPoints: [], suggestion: `批改失败：${e.message}` }, stage: STAGE.REVIEW });
     } finally {
-      setLoading(false);
+      setCurrentLoading(false);
       prefetchNextStage();
     }
   }
@@ -311,12 +324,12 @@ function LearnContent() {
     const cache = activeCache();
     // 已有练习数据且不是错误 → 直接恢复
     if (cache.practice?.questions?.length > 0 && cache.practice.questions[0]?.type !== "error") {
-      setLoading(false);
+      setCurrentLoading(false);
       updateCache(key, { stage: STAGE.PRACTICE });
       return;
     }
     updateCache(key, { stage: STAGE.PRACTICE });
-    setLoading(true);
+    setCurrentLoading(true);
     try {
       const weakPoints = cache.review?.weakPoints?.join("、") || "综合";
       const raw = await aiCall([
@@ -349,7 +362,7 @@ function LearnContent() {
     } catch (e) {
       updateCache(key, { practice: { questions: [{ type: "error", question: `生成失败：${e.message}`, answer: "" }] }, stage: STAGE.PRACTICE });
     } finally {
-      setLoading(false);
+      setCurrentLoading(false);
     }
   }
 
@@ -358,12 +371,12 @@ function LearnContent() {
     const cache = activeCache();
     // 已批改过且非强制 → 直接恢复
     if (!force && cache.practiceReview) {
-      setLoading(false);
+      setCurrentLoading(false);
       updateCache(key, { stage: STAGE.PRACTICE_REVIEW });
       return;
     }
     const questions = cache.practice?.questions || [];
-    setLoading(true);
+    setCurrentLoading(true);
 
     const qaText = questions.map((q, i) =>
       `${i + 1}. 题目：${q.question}\n   正确答案：${q.answer}\n   学生答案：${q.userAnswer || "（未作答）"}`
@@ -401,7 +414,7 @@ function LearnContent() {
     } catch (e) {
       updateCache(key, { practiceReview: { score: 0, suggestion: `批改失败：${e.message}`, readyForTeachBack: true }, stage: STAGE.PRACTICE_REVIEW });
     } finally {
-      setLoading(false);
+      setCurrentLoading(false);
       prefetchNextStage();
     }
   }
@@ -450,7 +463,7 @@ function LearnContent() {
 
     const updated = [...(tb.chatMessages || []), { role: "user", content: input }];
     updateCache(key, { teachBack: { ...tb, chatMessages: updated } });
-    setLoading(true);
+    setCurrentLoading(true);
 
     const wrongQ = tb.wrongQuestions[tb.currentWrongIndex];
     try {
@@ -516,7 +529,7 @@ function LearnContent() {
         teachBack: { ...tb, chatMessages: [...updated, { role: "assistant", content: `❌ ${e.message}` }] },
       });
     } finally {
-      setLoading(false);
+      setCurrentLoading(false);
     }
   }
 
@@ -616,6 +629,47 @@ function LearnContent() {
     }
   }
 
+  // 后台预生成：每节独立显示 token 球，节间短暂停顿
+  async function handlePrefill() {
+    setPrefillLoading(true);
+    try {
+    for (let ci = 0; ci < (course.chapters || []).length; ci++) {
+      const chapter = course.chapters[ci];
+      for (let si = 0; si < ((chapter.sections) || []).length; si++) {
+        const sk = sectionKey(ci, si);
+        const cached = sectionCache[sk];
+        if (cached?.lecture) continue; // 已有讲义，跳过
+        const section = chapter.sections[si];
+        try {
+          const lecture = await aiCall([
+            { role: "system", content: lectureSystemPrompt(course.courseTitle, chapter.title, section.title) },
+            { role: "user", content: `请讲解"${section.title}"这一节的内容。` },
+          ]);
+          updateCache(sk, { lecture });
+        } catch {}
+        // 生成小测
+        try {
+          if (cached?.quiz?.questions?.length > 0) continue;
+          const raw = await aiCall([
+            { role: "system", content: quizGenPrompt(course.courseTitle, lecture || cached?.lecture) },
+            { role: "user", content: "请根据上面的授课内容生成小测验。" },
+          ], 20000);
+          let quizData;
+          try {
+            const jsonMatch = raw.match(/\{[\s\S]*\}/);
+            quizData = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
+          } catch {
+            quizData = JSON.parse(raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim());
+          }
+          updateCache(sk, { quiz: { questions: (quizData.questions || []).map((q) => ({ ...q, userAnswer: "" })) } });
+        } catch {}
+      }
+    }
+    } finally {
+      setPrefillLoading(false);
+    }
+  }
+
   // 跳回之前的阶段（进度条点击）—— 保留全部数据，只改阶段
   function jumpToStage(targetStage) {
     const key = activeKey();
@@ -623,7 +677,7 @@ function LearnContent() {
     const cache = sectionCache[key];
     if (!cache) return;
     // 清除可能卡住的 loading 状态，并只更新 stage
-    setLoading(false);
+    setCurrentLoading(false);
     updateCache(key, { stage: targetStage });
   }
 
@@ -694,8 +748,18 @@ function LearnContent() {
       <div className="flex gap-6 h-[calc(100vh-100px)]">
         <aside className="w-72 flex-shrink-0 overflow-y-auto">
           <button onClick={() => router.push("/learn")} className="text-sm text-indigo-500 hover:text-indigo-700 mb-3 block">← 返回课程列表</button>
-          <h3 className="font-semibold text-sm text-zinc-500 mb-3 uppercase">📚 {course.courseTitle}</h3>
-          <div className="space-y-1">
+          <h3 className="font-semibold text-sm text-zinc-500 mb-1 uppercase">📚 {course.courseTitle}</h3>
+
+          {/* 预加载按钮 */}
+          <PrefillButton
+            course={course}
+            sectionCache={sectionCache}
+            onPrefill={handlePrefill}
+            loading={isLoading()}
+            initialLoading={prefillLoading}
+          />
+
+          <div className="space-y-1 mt-2">
             {course.chapters.map((chapter, ci) => (
               <div key={ci}>
                 <button onClick={() => selectChapter(ci)}
@@ -767,11 +831,13 @@ function LearnContent() {
             </div>
             <MarkdownRenderer content={cache.lecture || "加载中..."} />
           </div>
-          {loading && <LoadingHint text="AI 正在备课..." />}
-          <button onClick={startQuiz} disabled={loading}
-            className="w-full py-4 rounded-xl bg-indigo-600 text-white font-semibold text-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors">
-            🎯 我读完了，开始小测
-          </button>
+          {(typeof loading !== "undefined" ? loading : isLoading()) && <LoadingHint text="AI 正在备课..." />}
+          {!isLoading() && (
+            <button onClick={startQuiz}
+              className="w-full py-4 rounded-xl bg-indigo-600 text-white font-semibold text-lg hover:bg-indigo-700 transition-colors">
+              🎯 我读完了，开始小测
+            </button>
+          )}
         </div>
       )}
 
@@ -788,7 +854,7 @@ function LearnContent() {
               onPractice={startPractice}
               onTeachBack={startTeachBack}
               onRetry={restartSection}
-              loading={loading}
+              loading={isLoading()}
             />
           ) : (
             /* 未提交 → 做题 */
@@ -804,7 +870,7 @@ function LearnContent() {
                 updateCache(key, { quiz: undefined });
                 startQuiz();
               }}
-              loading={loading}
+              loading={isLoading()}
             />
           )}
         </>
@@ -823,7 +889,7 @@ function LearnContent() {
               onRetry={restartSection}
               onReset={resetPractice}
               onReGrade={reGradePractice}
-              loading={loading}
+              loading={isLoading()}
               hidePractice
             />
           ) : (
@@ -840,7 +906,7 @@ function LearnContent() {
                 updateCache(key, { practice: undefined });
                 startPractice();
               }}
-              loading={loading}
+              loading={isLoading()}
             />
           )}
         </>
@@ -852,6 +918,7 @@ function LearnContent() {
           lecture={cache.lecture || ""}
           stage={stage}
           sectionKey={activeKey()}
+          courseId={courseId}
         />
       )}
 
@@ -860,7 +927,7 @@ function LearnContent() {
         <TeachBackPanel
           teachBack={cache.teachBack || {}}
           onSend={sendTeachBackMessage}
-          loading={loading}
+          loading={isLoading()}
         />
       )}
 
@@ -1030,7 +1097,7 @@ function QuizPanel({ title = "✍️ 小测验", questions, onAnswerChange, onSu
           </div>
         ))}
       </div>
-      {loading && <LoadingHint text="AI 正在批改..." />}
+      {(typeof loading !== "undefined" ? loading : isLoading()) && <LoadingHint text="AI 正在批改..." />}
       <button onClick={onSubmit} disabled={loading}
         className="w-full py-4 rounded-xl bg-indigo-600 text-white font-semibold text-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors">
         📩 提交
@@ -1135,6 +1202,37 @@ function ExamSection() {
 }
 
 // 课程进度条（课程列表页用）
+function PrefillButton({ course, sectionCache, onPrefill, loading, initialLoading }) {
+  const [progress, setProgress] = useState({ done: 0, total: 0 });
+  const prefilling = initialLoading;
+
+  const total = course.chapters?.reduce((s, ch) => s + (ch.sections?.length || 0), 0) || 0;
+  const initialized = Object.values(sectionCache).filter((v) => v?.lecture).length;
+  const remaining = total - initialized;
+
+  useEffect(() => {
+    const done = Object.values(sectionCache).filter((v) => v?.lecture).length;
+    setProgress({ done, total });
+  }, [sectionCache, total]);
+
+  if (remaining <= 0 && !prefilling) return null;
+
+  return (
+    <div className="mb-2">
+      {prefilling ? (
+        <div className="text-xs text-indigo-500 flex items-center gap-2 px-2 py-1">
+          <span className="animate-pulse">⏳</span> 预加载中 {progress.done}/{total} 节
+        </div>
+      ) : (
+        <button onClick={onPrefill} disabled={prefilling}
+          className="text-xs text-indigo-500 hover:text-indigo-700 px-2 py-1 rounded hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors">
+          ⚡ 预加载全部内容（{remaining} 节待生成）
+        </button>
+      )}
+    </div>
+  );
+}
+
 function CourseProgressBar({ course }) {
   const [mounted, setMounted] = useState(false);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
@@ -1239,7 +1337,7 @@ function ReviewPanel({ title = "🔍 批改结果", questions, review, onRetry, 
         ))}
       </div>
 
-      {loading && <LoadingHint text="AI 正在准备..." />}
+      {(typeof loading !== "undefined" ? loading : isLoading()) && <LoadingHint text="AI 正在准备..." />}
 
       <div className="space-y-3">
         {!hidePractice ? (
@@ -1335,7 +1433,7 @@ function TeachBackPanel({ teachBack, onSend, loading }) {
             </div>
           </div>
         ))}
-        {loading && (
+        {(typeof loading !== "undefined" ? loading : isLoading()) && (
           <div className="flex justify-start">
             <div className="bg-white dark:bg-zinc-800 border rounded-xl px-4 py-3">
               <span className="text-sm text-zinc-400 animate-pulse">AI 正在听...</span>
@@ -1431,7 +1529,7 @@ function QuizReviewCombined({ title, questions, review, onSubmit, onPractice, on
         })}
       </div>
 
-      {loading && <LoadingHint text="AI 正在准备..." />}
+      {(typeof loading !== "undefined" ? loading : isLoading()) && <LoadingHint text="AI 正在准备..." />}
 
       {/* 操作按钮 */}
       <div className="space-y-3">
@@ -1480,7 +1578,7 @@ function QuizReviewCombined({ title, questions, review, onSubmit, onPractice, on
 }
 
 // ===================== 悬浮 AI 助手（小测/练习时可用）=====================
-function FloatingHelper({ lecture, stage, sectionKey }) {
+function FloatingHelper({ lecture, stage, sectionKey, courseId }) {
   const [open, setOpen] = useState(false);
   const [helperMessages, setHelperMessages] = useState([]);
   const [helperInput, setHelperInput] = useState("");
@@ -1493,7 +1591,7 @@ function FloatingHelper({ lecture, stage, sectionKey }) {
 
   // 小节切换时：加载该节的对话记录，重置输入和窗口状态
   useEffect(() => {
-    const saved = localStorage.getItem(`zhixueban-helper-${sectionKey}`);
+    const saved = localStorage.getItem(`zhixueban-helper-${courseId}-${sectionKey}`);
     if (saved) {
       try { setHelperMessages(JSON.parse(saved)); } catch { setHelperMessages([]); }
     } else {
@@ -1506,7 +1604,7 @@ function FloatingHelper({ lecture, stage, sectionKey }) {
   // 持久化
   useEffect(() => {
     if (helperMessages.length > 0) {
-      localStorage.setItem(`zhixueban-helper-${sectionKey}`, JSON.stringify(helperMessages));
+      localStorage.setItem(`zhixueban-helper-${courseId}-${sectionKey}`, JSON.stringify(helperMessages));
     }
   }, [helperMessages, sectionKey]);
 
@@ -1519,48 +1617,24 @@ function FloatingHelper({ lecture, stage, sectionKey }) {
     setHelperInput("");
     setHelperLoading(true);
 
-    const updated = [...helperMessages, { role: "user", content: text }];
-    setHelperMessages(updated);
+    const userMsg = { role: "user", content: text };
+    setHelperMessages((prev) => [...prev, userMsg]);
 
     try {
       const config = getApiConfig();
       const reply = await streamAiCall({
         apiKey: config.apiKey, baseUrl: config.baseUrl, model: config.model,
-        maxTokens: 500,
         messages: [
-          {
-            role: "system",
-            content: isExam
-              ? `你是智学伴的 AI 学习助手。学生正在${stageLabel}。
-
-根据以下授课内容回答学生的问题：
-${lecture.slice(0, 1500)}
-
-⚠️ 重要规则：
-- 只解释概念、定义、原理，不透露任何题目的答案
-- 不给解题思路或提示
-- 如果学生的问题直接问某道题怎么做、答案是什么，委婉拒绝并建议他先自己思考
-- 回答简洁，50-150字即可
-- 态度友好鼓励`
-                : `你是智学伴的 AI 学习助手。学生正在阅读授课内容。
-
-根据以下授课内容回答学生的问题：
-${lecture.slice(0, 1500)}
-
-要求：
-- 耐心解答任何问题，可以详细解释
-- 可以举例帮助理解
-- 涉及数学公式请用 $...$（行内）或 $$...$$（块级）LaTeX 格式
-- 不要用 \\(...\\) 或 \\[...\\] 这种写法
-- 回答清晰有条理
-- 态度友好鼓励`,
-            },
-            ...updated,
-          ],
+          { role: "system", content: isExam
+            ? `你是学习助手。${stageLabel}。只解释概念不透露答案，涉及公式用 $...$ 或 $$...$$`
+            : `你是学习助手。阅读中。可详细解答，公式用 $...$ 或 $$...$$，不用 \\(...\\)` },
+          ...helperMessages,
+          userMsg,
+        ],
       });
-      setHelperMessages([...updated, { role: "assistant", content: reply }]);
+      setHelperMessages((prev) => [...prev, { role: "assistant", content: reply || "(AI 返回为空)" }]);
     } catch (e) {
-      setHelperMessages([...updated, { role: "assistant", content: `❌ ${e.message}` }]);
+      setHelperMessages((prev) => [...prev, { role: "assistant", content: `❌ ${e.message}` }]);
     } finally {
       setHelperLoading(false);
     }
@@ -1669,7 +1743,8 @@ function lectureSystemPrompt(courseTitle, chapterTitle, sectionTitle) {
 - 通俗易懂，适当举例
 - 层次清晰（概念 → 详解 → 举例 → 小结）
 - 涉及公式用 LaTeX（行内 $...$，块级 $$...$$）
-- 500-800字，Markdown格式`;
+- ⚠️ 严格控制 500-800 字，不要超过 800 字
+- Markdown 格式`;
 }
 
 function quizGenPrompt(courseTitle, lecture) {

@@ -1,11 +1,13 @@
 // AI API 代理路由 —— 支持 streaming 实时 token 显示
 export async function POST(request) {
   try {
-    const { apiKey, baseUrl, model, messages, temperature, maxTokens } = await request.json();
+    const { apiKey, baseUrl, model, messages, temperature, maxTokens, stream: useStream } = await request.json();
 
     if (!apiKey || !baseUrl || !messages) {
       return Response.json({ error: "缺少必要参数" }, { status: 400 });
     }
+
+    const doStream = useStream !== false; // 默认流式
 
     const response = await fetch(`${baseUrl}/chat/completions`, {
       method: "POST",
@@ -18,9 +20,21 @@ export async function POST(request) {
         messages,
         temperature: temperature ?? 0.7,
         max_tokens: maxTokens || 4000,
-        stream: true,
+        stream: doStream,
       }),
     });
+
+    // 非流式模式：直接返回 JSON
+    if (!doStream) {
+      const data = await response.json();
+      if (!response.ok) {
+        return Response.json({ error: data.error?.message || `API 错误: ${response.status}` }, { status: response.status });
+      }
+      return Response.json({
+        content: data.choices[0].message.content,
+        usage: data.usage || null,
+      });
+    }
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));

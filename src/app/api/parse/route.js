@@ -92,21 +92,9 @@ async function parseBuffer(buffer, ext) {
   }
 
   if (ext === "pdf") {
-    const fs = require("fs");
-    const path = require("path");
     const pdfjsLib = require("pdfjs-dist/legacy/build/pdf.mjs");
-
-    // 指向 node_modules 里实际的 worker 文件，Windows 需 file:// URL
-    const workerPath = path.resolve(
-      process.cwd(),
-      "node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs"
-    );
-    pdfjsLib.GlobalWorkerOptions.workerSrc = `file://${workerPath}`;
-
     const doc = await pdfjsLib.getDocument({
       data: new Uint8Array(buffer),
-      useWorkerFetch: false,
-      isEvalSupported: false,
     }).promise;
 
     const pages = [];
