@@ -39,9 +39,14 @@ function LearnContent() {
     const cache = activeCache();
     return cache?._loading === true;
   }
+  // 存储当前操作的 key，防止翻页后 activeKey() 返回 null
+  let currentOpKey = null;
   function setCurrentLoading(v, ci, si) {
-    const key = ci != null ? sectionKey(ci, si) : activeKey();
-    if (key) updateCache(key, { _loading: v });
+    const key = ci != null ? sectionKey(ci, si) : activeKey() || currentOpKey;
+    if (key) {
+      if (v) currentOpKey = key;
+      updateCache(key, { _loading: v });
+    }
   }
 
   // ---------- 工具函数 ----------
@@ -79,7 +84,16 @@ function LearnContent() {
       setActiveChapter(null);
       setActiveSection(null);
       const cached = localStorage.getItem(cacheStorageKey());
-      if (cached) { try { setSectionCache(JSON.parse(cached)); } catch {} }
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          // 清除所有残留的 _loading 标记
+          for (const k of Object.keys(parsed)) {
+            if (parsed[k] && typeof parsed[k] === "object") delete parsed[k]._loading;
+          }
+          setSectionCache(parsed);
+        } catch { setSectionCache({}); }
+      }
       else setSectionCache({});
     } else {
       setCourse(null);
@@ -114,7 +128,7 @@ function LearnContent() {
   }
 
   // ---------- 选择章节/小节 ----------
-  function selectChapter(ci) { setActiveChapter(ci); setActiveSection(null); }
+  function selectChapter(ci) { setActiveChapter(ci); setActiveSection(null); currentOpKey = null; }
   function selectSection(si) { setActiveSection(si); }
 
   // ---------- 进入阅读 ----------
@@ -500,25 +514,10 @@ function LearnContent() {
       const newMessages = [...updated, { role: "assistant", content: answer }];
 
       if (approved) {
-        // 这道错题通过，看还有没有下一道
-        const nextIndex = tb.currentWrongIndex + 1;
-        if (nextIndex < tb.wrongQuestions.length) {
-          // 插入系统提示，告诉学生切换到下一题
-          const nextQ = tb.wrongQuestions[nextIndex];
-          const sysMsg = {
-            role: "assistant",
-            content: `✅ 这道题通过了！下面是第 ${nextIndex + 1}/${tb.wrongQuestions.length} 道错题：\n\n**${nextQ.question}**`,
-          };
-          updateCache(key, {
-            teachBack: { ...tb, chatMessages: [...newMessages, sysMsg], currentWrongIndex: nextIndex },
-          });
-        } else {
-          // 所有错题讲完 → 完成！
-          updateCache(key, {
-            teachBack: { ...tb, chatMessages: newMessages, approved: true },
-            stage: STAGE.COMPLETED,
-          });
-        }
+        // 标记当前题已通过，但不自动跳转（等用户点"下一题"）
+        updateCache(key, {
+          teachBack: { ...tb, chatMessages: newMessages, currentQuestionApproved: true },
+        });
       } else {
         updateCache(key, {
           teachBack: { ...tb, chatMessages: newMessages },
@@ -530,6 +529,27 @@ function LearnContent() {
       });
     } finally {
       setCurrentLoading(false);
+    }
+  }
+
+  // 手动切换到下一道错题
+  function nextTeachQuestion() {
+    const key = activeKey();
+    const cache = activeCache();
+    const tb = cache?.teachBack;
+    if (!tb) return;
+    const nextIndex = (tb.currentWrongIndex || 0) + 1;
+    if (nextIndex < tb.wrongQuestions.length) {
+      const nextQ = tb.wrongQuestions[nextIndex];
+      const sysMsg = {
+        role: "assistant",
+        content: `下面是第 ${nextIndex + 1}/${tb.wrongQuestions.length} 道错题：\n\n**${nextQ.question}**`,
+      };
+      updateCache(key, {
+        teachBack: { ...tb, currentWrongIndex: nextIndex, currentQuestionApproved: false, chatMessages: [...(tb.chatMessages || []), sysMsg] },
+      });
+    } else {
+      updateCache(key, { teachBack: { ...tb, approved: true }, stage: STAGE.COMPLETED });
     }
   }
 
@@ -927,6 +947,7 @@ function LearnContent() {
         <TeachBackPanel
           teachBack={cache.teachBack || {}}
           onSend={sendTeachBackMessage}
+          onNext={nextTeachQuestion}
           loading={isLoading()}
         />
       )}
@@ -1221,7 +1242,7 @@ function PrefillButton({ course, sectionCache, onPrefill, loading, initialLoadin
     <div className="mb-2">
       {prefilling ? (
         <div className="text-xs text-indigo-500 flex items-center gap-2 px-2 py-1">
-          <span className="animate-pulse">⏳</span> 预加载中 {progress.done}/{total} 节
+          <span className="animate-pulse">⏳</span> 预加载中 {Math.min(progress.done, total)}/{total} 节
         </div>
       ) : (
         <button onClick={onPrefill} disabled={prefilling}
@@ -1313,10 +1334,17 @@ function ReviewPanel({ title = "🔍 批改结果", questions, review, onRetry, 
                   <div className="text-sm font-medium text-black dark:text-zinc-100">{i + 1}. <MarkdownRenderer content={q.question} /></div>
                   <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
                     <span className="text-xs text-zinc-400">你的答案：{q.userAnswer || "（未作答）"}</span>
+                    {q.options?.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {q.options.map((opt, oi) => (
+                          <span key={oi} className={`text-xs px-2 py-0.5 rounded ${opt === q.answer ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400" : opt === q.userAnswer ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400" : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500"}`}>{opt}</span>
+                        ))}
+                      </div>
+                    )}
                     {!q.correct && <div className="text-xs text-green-600 dark:text-green-400">正确答案：<MarkdownRenderer content={q.answer} /></div>}
                   </div>
                   {q.feedback && (
-                    <p className="text-xs text-zinc-500 mt-1 italic">{q.feedback}</p>
+                    <div className="text-xs text-zinc-500 mt-1 italic"><MarkdownRenderer content={q.feedback} /></div>
                   )}
                 </div>
               </div>
@@ -1373,7 +1401,7 @@ function ReviewPanel({ title = "🔍 批改结果", questions, review, onRetry, 
 }
 
 // 以教促学面板
-function TeachBackPanel({ teachBack, onSend, loading }) {
+function TeachBackPanel({ teachBack, onSend, loading, onNext }) {
   const currentIdx = teachBack.currentWrongIndex || 0;
   const total = teachBack.wrongQuestions?.length || 0;
   const wrongQ = teachBack.wrongQuestions?.[currentIdx];
@@ -1407,7 +1435,11 @@ function TeachBackPanel({ teachBack, onSend, loading }) {
           <div className="bg-white dark:bg-zinc-800 rounded-lg p-4 border border-amber-200 dark:border-amber-800">
             <p className="text-sm font-medium text-black dark:text-zinc-100 mb-1">{wrongQ.question}</p>
             <div className="flex gap-4 mt-2">
-              <span className="text-xs text-zinc-400">正确答案：<MarkdownRenderer content={wrongQ.answer} /></span>
+              {teachBack.chatMessages?.filter((m) => m.role === "assistant").slice(-1)[0]?.content?.includes("✅ APPROVED") ? (
+                <span className="text-xs text-green-600">正确答案：<MarkdownRenderer content={wrongQ.answer} /></span>
+              ) : (
+                <span className="text-xs text-amber-500">🎓 讲通了才显示正确答案</span>
+              )}
               <span className="text-xs text-red-500">你的答案：{wrongQ.userAnswer || "（未作答）"}</span>
             </div>
           </div>
@@ -1442,16 +1474,27 @@ function TeachBackPanel({ teachBack, onSend, loading }) {
         )}
       </div>
 
-      {/* 输入 */}
-      <div className="flex gap-3">
-        <input id="teachback-input" type="text" placeholder="向 AI 讲解这道题的解题思路..."
-          onKeyDown={(e) => e.key === "Enter" && onSend()} disabled={loading}
-          className="flex-1 px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-black dark:text-zinc-100 focus:ring-2 focus:ring-amber-500 outline-none disabled:opacity-50" />
-        <button onClick={onSend} disabled={loading}
-          className="px-6 py-3 rounded-lg bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50 transition-colors">
-          讲解
-        </button>
-      </div>
+      {/* 输入 / 下一题 */}
+      {teachBack.currentQuestionApproved && onNext ? (
+        <div className="flex gap-3">
+          <input id="teachback-input" type="text" placeholder="这道题已通过 ✅"
+            disabled className="flex-1 px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-black dark:text-zinc-100 outline-none opacity-50" />
+          <button onClick={onNext}
+            className="px-6 py-3 rounded-lg bg-green-500 text-white hover:bg-green-600 transition-colors">
+            下一题 →
+          </button>
+        </div>
+      ) : (
+        <div className="flex gap-3">
+          <input id="teachback-input" type="text" placeholder="向 AI 讲解这道题的解题思路..."
+            onKeyDown={(e) => e.key === "Enter" && onSend()} disabled={loading}
+            className="flex-1 px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-black dark:text-zinc-100 focus:ring-2 focus:ring-amber-500 outline-none disabled:opacity-50" />
+          <button onClick={onSend} disabled={loading}
+            className="px-6 py-3 rounded-lg bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50 transition-colors">
+            讲解
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -1506,6 +1549,13 @@ function QuizReviewCombined({ title, questions, review, onSubmit, onPractice, on
                         </span>
                       )}
                     </div>
+                    {q.options?.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {q.options.map((opt, oi) => (
+                          <span key={oi} className={`text-xs px-2 py-0.5 rounded ${opt === q.answer ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400" : opt === q.userAnswer ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400" : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500"}`}>{opt}</span>
+                        ))}
+                      </div>
+                    )}
                     <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
                       <span className="text-xs text-zinc-400">你的答案：{q.userAnswer || "（未作答）"}</span>
                       {!isCorrect && <div className="text-xs text-green-600 dark:text-green-400">正确答案：<MarkdownRenderer content={q.answer} /></div>}

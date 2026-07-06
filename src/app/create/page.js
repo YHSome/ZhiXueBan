@@ -22,6 +22,8 @@ export default function CreatePage() {
   const [editingChapter, setEditingChapter] = useState(null); // 正在编辑的章节索引
   const [error, setError] = useState(null);
   const [fileRequirements, setFileRequirements] = useState(""); // 文件上传附加需求
+  const [reviseInput, setReviseInput] = useState(""); // 确认页的 AI 修改需求
+  const [revising, setRevising] = useState(false); // AI 正在修改中
   const fileInputRef = useRef(null);
 
   useEffect(() => { setMounted(true); }, []);
@@ -55,12 +57,20 @@ export default function CreatePage() {
         messages: [
           {
             role: "system",
-            content: `你是一个课程设计专家。用户会描述想学什么，你需要生成课程章节结构。
+            content: `你是智学伴的 AI 课程设计师，核心理念是"以教促学"——学生学完后要能向别人讲清楚。
 
-返回格式必须是严格的 JSON（不要 markdown 代码块）：
-{"courseTitle":"课程标题","chapters":[{"title":"章节标题","sections":[{"title":"小节标题"}]}]}
+请根据用户的描述，设计一份结构化的课程大纲。
 
-要求：章节数量 3-8 个，每章必须 2-5 个小节（sections 不能为空），覆盖用户核心主题。若用户要求简洁，减少章节数量而非小节内容。章节标题须含主题如"第一章：勾股定理"，禁止纯序号`,
+课程设计原则：
+- 章节之间有逻辑递进，形成从基础到进阶的完整学习路径
+- 每章标题必须包含具体主题（如"第一章：勾股定理的概念"），禁止纯序号
+- 每章必须有 1-5 个小节（至少 1 个，否则无法进入学习），每个小节是一个独立的可教学单元
+- 小节标题要具体，让学生一看就知道学什么
+- 章节数量 3-8 个，根据内容复杂度灵活决定
+- 若用户要求简洁，减少章节数量（合并相近主题），而非缩减小节内容
+
+返回 JSON（不要 markdown 代码块）：
+{"courseTitle":"课程标题","chapters":[{"title":"章标题（含主题）","sections":[{"title":"小节标题"}]}]}`,
           },
           { role: "user", content: `我想学习：${describeInput}` },
         ],
@@ -152,11 +162,25 @@ export default function CreatePage() {
         messages: [
           {
             role: "system",
-            content: `你是一个文档分析专家。分析以下文档内容，识别出章节结构。
+            content: `你是智学伴的 AI 课程设计师，核心理念是"以教促学"——学生学完后要能向别人讲清楚。
 
-返回 JSON：{"courseTitle":"标题","chapters":[{"title":"章","summary":"概述","sections":[{"title":"节1"},{"title":"节2"}],"hasGaps":false,"gapDescription":""}]}
+请分析以下文档，提取出适合系统化学习的知识体系。
 
-要求：识别章节标题模式（须含主题，如"第一章：勾股定理"），每章必须拆分为 2-5 个小节。若用户要求简洁，应减少章节数量（合并相近主题），而非缩减小节内容或留空标题。${fileRequirements.trim() ? `用户额外需求：${fileRequirements.trim()}` : ""}`,
+⚠️ 过滤规则：
+- 忽略考试通知、考场规则、行政说明等非知识内容
+- 忽略"注意事项""考试题型"等应试元信息
+- 只提取可教学、可讲解的知识点
+
+课程设计原则：
+- 章节间要有逻辑递进关系，形成完整的学习路径
+- 每章标题必须包含具体主题（如"第一章：鸦片战争始末"，禁止纯序号）
+- 每章必须有 1-5 个小节（至少 1 个，否则无法进入学习），每个小节是一个独立的可教学单元
+- 小节标题要具体，让学生一看就知道这节学什么
+- ⚠️ 若文档只有章没有节，或某章内容不全，AI 应自动补全小节（基于章节主题推断）。补全后在 gapDescription 中注明"已自动补全小节"，hasGaps 设为 true 以便用户知晓
+
+返回 JSON：{"courseTitle":"课程标题","chapters":[{"title":"章标题（含主题）","summary":"本章学什么（20字内）","sections":[{"title":"小节标题"},{"title":"小节标题"}],"hasGaps":false,"gapDescription":""}]}
+
+${fileRequirements.trim() ? `用户额外需求：${fileRequirements.trim()}` : ""}`,
           },
           { role: "user", content: `请分析以下文档，识别章节结构：\n\n${textToSend}` },
         ],
@@ -236,6 +260,42 @@ export default function CreatePage() {
   function removeChapter(chapterIdx) {
     const updated = chapters.chapters.filter((_, i) => i !== chapterIdx);
     setChapters({ ...chapters, chapters: updated });
+  }
+
+  // AI 改写章节结构
+  async function handleRevise() {
+    if (!reviseInput.trim() || !chapters || revising) return;
+    setRevising(true);
+    try {
+      const config = getApiConfig();
+      const currentJson = JSON.stringify(chapters);
+      const result = await streamAiCall({
+        apiKey: config.apiKey, baseUrl: config.baseUrl, model: config.model,
+        messages: [
+          {
+            role: "system",
+            content: `你是课程设计助手。根据用户的修改意见，调整已有课程的章节结构。
+
+当前课程 JSON：${currentJson.slice(0, 3000)}
+
+修改原则：保持课程主题不变，只按用户意见调整。返回完整 JSON（格式与输入相同，包含 courseTitle 和 chapters 数组）`,
+          },
+          { role: "user", content: `修改意见：${reviseInput.trim()}` },
+        ],
+        maxTokens: 10000,
+      });
+      let data;
+      try { data = JSON.parse(result.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim()); } catch {
+        const jsonMatch = result.match(/\{[\s\S]*\}/);
+        data = JSON.parse(jsonMatch ? jsonMatch[0] : result);
+      }
+      setChapters({ ...chapters, courseTitle: data.courseTitle || chapters.courseTitle, chapters: data.chapters || chapters.chapters });
+      setReviseInput("");
+    } catch (e) {
+      setError(`修改失败：${e.message}`);
+    } finally {
+      setRevising(false);
+    }
   }
 
   // 确认章节，保存课程并进入学习
@@ -335,6 +395,26 @@ export default function CreatePage() {
           </button>
         </div>
 
+        {/* AI 改写 */}
+        <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-4 mb-6">
+          <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">🤖 AI 修改课程</p>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={reviseInput}
+              onChange={(e) => setReviseInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleRevise()}
+              placeholder="如：浓缩一点、增加习题章、拆细第三章..."
+              disabled={revising}
+              className="flex-1 px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm text-black dark:text-zinc-100 focus:ring-2 focus:ring-indigo-500 outline-none disabled:opacity-50"
+            />
+            <button onClick={handleRevise} disabled={revising || !reviseInput.trim()}
+              className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-50 transition-colors">
+              {revising ? "修改中..." : "发送"}
+            </button>
+          </div>
+        </div>
+
         <div className="flex gap-3">
           <button
             onClick={() => setChapters(null)}
@@ -349,6 +429,7 @@ export default function CreatePage() {
             ✅ 确认，开始学习
           </button>
         </div>
+      <TokenToast />
       </div>
     );
   }

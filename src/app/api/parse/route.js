@@ -12,6 +12,37 @@ export async function POST(request) {
 
     const fileName = file.name || "";
     const ext = fileName.split(".").pop().toLowerCase();
+
+    // 先尝试 Python 解析（更可靠，支持更多格式）
+    if (["doc", "docx", "pdf", "pptx", "txt", "md", "zip"].includes(ext)) {
+      try {
+        const os = require("os");
+        const path = require("path");
+        const fs = require("fs");
+        const { execSync } = require("child_process");
+        const ext2 = fileName.split(".").pop().toLowerCase();
+        const tmpPath = path.join(os.tmpdir(), `zhixueban_${Date.now()}.${ext2}`);
+        fs.writeFileSync(tmpPath, Buffer.from(await file.arrayBuffer()));
+        const script = path.resolve(process.cwd(), "parse.py");
+        const result = execSync(`python "${script}" "${tmpPath}"`, {
+          env: { ...process.env, PATH: process.env.PATH + ";C:\\Program Files\\Git\\mingw64\\bin" },
+          encoding: "utf-8",
+          timeout: 30000,
+        });
+        fs.unlinkSync(tmpPath);
+        const data = JSON.parse(result);
+        if (data.text) {
+          return Response.json({ text: data.text, fileName });
+        }
+        if (data.error) {
+          // Python 解析出错，回退到 JS
+          console.warn("Python 解析失败:", data.error, "，回退到 JS");
+        }
+      } catch (e) {
+        console.warn("Python 解析异常:", e.message, "，回退到 JS");
+      }
+    }
+
     const buffer = Buffer.from(await file.arrayBuffer());
 
     // 优先判断是否 ZIP 压缩包（magic bytes: PK）
@@ -70,11 +101,9 @@ export async function POST(request) {
     }
 
     if (!text || text.trim().length < 10) {
-      const hint = ext === "pdf" || ext === "docx"
-        ? "。此文件可能是扫描件或图片型文档，不含可提取的文字"
-        : "";
+      const rawLen = text ? text.length : 0;
       return Response.json(
-        { error: `文件内容太少，无法提取有效文本${hint}` },
+        { error: `文件内容太少（共 ${rawLen} 字符，有效 ${text ? text.trim().length : 0} 字符），可能是扫描件或受保护的文档` },
         { status: 422 }
       );
     }
@@ -109,11 +138,24 @@ async function parseBuffer(buffer, ext) {
   }
 
   if (ext === "docx") {
-    const mammoth = await import("mammoth");
-    const extractRawText = mammoth.default?.extractRawText || mammoth.extractRawText;
-    if (!extractRawText) throw new Error("mammoth 加载失败");
-    const result = await extractRawText({ buffer });
-    return result.value;
+    // 先尝试 mammoth
+    try {
+      const mammoth = require("mammoth");
+      const result = await mammoth.extractRawText({ buffer });
+      if (result?.value?.trim()) return result.value;
+    } catch {}
+    // mammoth 失败时用 jszip 直接读 XML
+    try {
+      const JSZip = require("jszip");
+      const zip = await JSZip.loadAsync(buffer);
+      const docXml = await zip.file("word/document.xml")?.async("text");
+      if (!docXml) throw new Error("找不到 document.xml");
+      // 提取 <w:t> 标签中的文本
+      const texts = docXml.match(/<w:t[^>]*>([^<]*)<\/w:t>/g) || [];
+      const text = texts.map(t => t.replace(/<w:t[^>]*>/, "").replace(/<\/w:t>/, "")).join("");
+      if (text.trim()) return text;
+    } catch (e2) {}
+    throw new Error("DOCX 解析为空，无法提取文字");
   }
 
   // 不支持的格式

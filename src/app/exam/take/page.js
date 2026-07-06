@@ -204,6 +204,13 @@ function TakeExamContent() {
                       )}
                     </div>
                     <p className="text-xs text-zinc-400 mt-1">你的答案：{q.userAnswer || "（未作答）"}</p>
+                    {q.options?.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {q.options.map((opt, oi) => (
+                          <span key={oi} className={`text-xs px-2 py-0.5 rounded ${opt === q.answer ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400" : opt === q.userAnswer ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400" : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500"}`}>{opt}</span>
+                        ))}
+                      </div>
+                    )}
                     {v !== "correct" && <div className="text-xs text-green-600 mt-1">正确答案：<MarkdownRenderer content={q.answer} /></div>}
                     {q.feedback && <div className="text-xs text-zinc-500 mt-1 italic"><MarkdownRenderer content={q.feedback} /></div>}
                   </div>

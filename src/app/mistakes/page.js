@@ -177,6 +177,13 @@ export default function MistakesPage() {
                       </div>
                       <div className="flex gap-4 mt-1 text-xs">
                         <span className="text-red-500">你的答案：{q.userAnswer || "（未作答）"}</span>
+                        {q.options?.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {q.options.map((opt, oi) => (
+                              <span key={oi} className={`text-xs px-1.5 py-0.5 rounded ${opt === q.answer ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400" : opt === q.userAnswer ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400" : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500"}`}>{opt}</span>
+                            ))}
+                          </div>
+                        )}
                         <span className="text-green-600">正确答案：<MarkdownRenderer content={q.answer} /></span>
                       </div>
                       {q.feedback && (
