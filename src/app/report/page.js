@@ -12,12 +12,16 @@ export default function ReportPage() {
   const [aiSummary, setAiSummary] = useState(null);
   const [generating, setGenerating] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [stale, setStale] = useState(false);
+  const [history, setHistory] = useState([]);
+  const [viewHistory, setViewHistory] = useState(false);
 
   useEffect(() => {
-    // 恢复已保存的 AI 评价
     try {
       const saved = localStorage.getItem("zhixueban-report-summary");
       if (saved) setAiSummary(saved);
+      const h = JSON.parse(localStorage.getItem("zhixueban-report-history") || "[]");
+      setHistory(h);
     } catch {}
   }, []);
 
@@ -105,6 +109,12 @@ export default function ReportPage() {
     };
 
     setReport(generatedReport);
+    // 指纹检测：比对上次生成报告时的数据
+    const fingerprint = `${generatedReport.completedSections}-${generatedReport.avgQuizScore}-${generatedReport.avgExamScore}-${generatedReport.completionRate}`;
+    const savedFP = localStorage.getItem("zhixueban-report-fp");
+    if (savedFP && savedFP !== fingerprint && aiSummary) {
+      setStale(true);
+    }
     setLoading(false);
   }, []);
 
@@ -131,12 +141,35 @@ export default function ReportPage() {
         ],
       });
       setAiSummary(summary);
+      setStale(false);
       localStorage.setItem("zhixueban-report-summary", summary);
+      if (report) {
+        const fp = `${report.completedSections}-${report.avgQuizScore}-${report.avgExamScore}-${report.completionRate}`;
+        localStorage.setItem("zhixueban-report-fp", fp);
+        // 存入历史
+        const entry = {
+          date: new Date().toLocaleString("zh-CN"),
+          summary,
+          report: { ...report }, // 浅拷贝数据快照
+          fp,
+        };
+        const updated = [entry, ...history].slice(0, 20); // 保留最近 20 条
+        setHistory(updated);
+        localStorage.setItem("zhixueban-report-history", JSON.stringify(updated));
+      }
     } catch (e) {
       setAiSummary(`生成失败：${e.message}`);
     } finally {
       setGenerating(false);
     }
+  }
+
+  const [historyViewing, setHistoryViewing] = useState(null); // 正在查看的历史条目
+
+  function loadHistoryEntry(entry) {
+    setHistoryViewing(entry.date);
+    setAiSummary(entry.summary);
+    setReport(entry.report);
   }
 
   if (loading) {
@@ -147,7 +180,28 @@ export default function ReportPage() {
 
   return (
     <div className="max-w-3xl mx-auto">
-      <h2 className="text-2xl font-bold mb-6 text-black dark:text-zinc-50">📊 学习报告</h2>
+      <h2 className="text-2xl font-bold mb-2 text-black dark:text-zinc-50">📊 学习报告</h2>
+
+      {historyViewing && (
+        <div className="mb-4 p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg border border-indigo-200 dark:border-indigo-800 flex items-center justify-between">
+          <span className="text-sm text-indigo-600 dark:text-indigo-400">📅 正在查看：{historyViewing}</span>
+          <button onClick={() => { setHistoryViewing(null); setAiSummary(localStorage.getItem("zhixueban-report-summary") || null); }}
+            className="text-xs text-indigo-500 hover:text-indigo-700">
+            ← 返回当前报告
+          </button>
+        </div>
+      )}
+
+      {/* 数据过时提示 */}
+      {stale && (
+        <div className="mb-4 p-4 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-200 dark:border-amber-800 flex items-center justify-between">
+          <span className="text-sm text-amber-700 dark:text-amber-400">⚠️ 学习进度已更新，当前报告可能已过时</span>
+          <button onClick={handleGenerateSummary} disabled={generating}
+            className="px-4 py-2 rounded-lg bg-amber-500 text-white text-sm hover:bg-amber-600 disabled:opacity-50 transition-colors">
+            {generating ? "生成中..." : "🔄 更新报告"}
+          </button>
+        </div>
+      )}
 
       {/* AI 评价 */}
       <div className="mb-6">
@@ -226,6 +280,40 @@ export default function ReportPage() {
               ))}
             </div>
           </div>
+        </div>
+      )}
+      {/* 历史报告 */}
+      {history.length > 0 && (
+        <div className="mt-12 pt-8 border-t border-zinc-200 dark:border-zinc-800">
+          <button onClick={() => setViewHistory(!viewHistory)}
+            className="text-sm font-semibold text-zinc-500 hover:text-indigo-600 mb-4 flex items-center gap-2">
+            📋 历史报告 ({history.length}) {viewHistory ? "▲" : "▼"}
+          </button>
+          {viewHistory && (
+            <div className="space-y-2">
+              {history.map((entry, i) => (
+                <div key={i}
+                  onClick={() => loadHistoryEntry(entry)}
+                  className={`rounded-xl border p-4 hover:border-indigo-300 cursor-pointer transition-colors ${
+                    historyViewing === entry.date
+                      ? "bg-indigo-50 dark:bg-indigo-900/20 border-indigo-300 dark:border-indigo-700"
+                      : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800"
+                  }`}>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-black dark:text-zinc-100">
+                      {entry.date}
+                      {historyViewing === entry.date && <span className="ml-2 text-xs text-indigo-500">当前查看</span>}
+                    </span>
+                    <div className="flex gap-4 text-xs text-zinc-400">
+                      <span>完成率 {entry.report.completionRate}%</span>
+                      {entry.report.avgQuizScore != null && <span>小测均分 {entry.report.avgQuizScore}</span>}
+                      {entry.report.avgExamScore != null && <span>试卷均分 {entry.report.avgExamScore}</span>}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
       <TokenToast />

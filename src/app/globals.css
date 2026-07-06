@@ -29,3 +29,10 @@ body {
 /* 字号调节 */
 html.font-standard { font-size: 16px; }
 html.font-large { font-size: 20px; }
+
+/* LaTeX 工具栏：输入框聚焦时才显示 */
+.latex-focus-group:focus-within .latex-toolbar-wrap {
+  opacity: 1;
+  max-height: 3rem;
+  overflow: visible;
+}

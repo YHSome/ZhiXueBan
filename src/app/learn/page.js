@@ -7,6 +7,8 @@ import { getAllCourses, getCourse, deleteCourse } from "@/lib/courses";
 import { getAllExams, deleteExam } from "@/lib/exams";
 import MarkdownRenderer from "@/components/MarkdownRenderer";
 import TokenToast, { streamAiCall, updateTokenToast } from "@/components/TokenToast";
+import { lecturePrompt, quizPrompt, practicePrompt, gradingPrompt, teachBackPrompt } from "@/lib/prompts";
+import LatexToolbar from "@/components/LatexToolbar";
 
 // ===================== 阶段枚举 =====================
 const STAGE = {
@@ -153,7 +155,7 @@ function LearnContent() {
     const section = chapter.sections[si];
     try {
       const result = await aiCall([
-        { role: "system", content: lectureSystemPrompt(course.courseTitle, chapter.title, section.title) },
+        { role: "system", content: lecturePrompt(course.courseTitle, chapter.title, section.title) },
         { role: "user", content: `请讲解"${section.title}"这一节的内容。` },
       ]);
       updateCache(key, { lecture: result, chatMessages: [] });
@@ -180,7 +182,7 @@ function LearnContent() {
     setCurrentLoading(true);
     try {
       const raw = await aiCall([
-        { role: "system", content: quizGenPrompt(course.courseTitle, cache.lecture) },
+        { role: "system", content: quizPrompt(course.courseTitle, cache.lecture) },
         { role: "user", content: "请根据上面的授课内容生成小测验。" },
       ], 20000);
 
@@ -347,7 +349,7 @@ function LearnContent() {
     try {
       const weakPoints = cache.review?.weakPoints?.join("、") || "综合";
       const raw = await aiCall([
-        { role: "system", content: practiceGenPrompt(course.courseTitle, cache.lecture, weakPoints) },
+        { role: "system", content: practicePrompt(course.courseTitle, cache.lecture, weakPoints) },
         { role: "user", content: "请根据薄弱点生成针对性练习。" },
       ], 20000);
 
@@ -599,7 +601,7 @@ function LearnContent() {
     if (stage === STAGE.READING && cache.lecture && (!cache.quiz || cache.quiz.questions?.[0]?.type === "error")) {
       try {
         const raw = await aiCall([
-          { role: "system", content: quizGenPrompt(course.courseTitle, cache.lecture) },
+          { role: "system", content: quizPrompt(course.courseTitle, cache.lecture) },
           { role: "user", content: "请根据上面的授课内容生成小测验。" },
         ], 20000);
         let quizData;
@@ -619,7 +621,7 @@ function LearnContent() {
       try {
         const weakPoints = cache.review?.weakPoints?.join("、") || "综合";
         const raw = await aiCall([
-          { role: "system", content: practiceGenPrompt(course.courseTitle, cache.lecture, weakPoints) },
+          { role: "system", content: practicePrompt(course.courseTitle, cache.lecture, weakPoints) },
           { role: "user", content: "请根据薄弱点生成针对性练习。" },
         ], 20000);
         let practiceData;
@@ -662,7 +664,7 @@ function LearnContent() {
         const section = chapter.sections[si];
         try {
           const lecture = await aiCall([
-            { role: "system", content: lectureSystemPrompt(course.courseTitle, chapter.title, section.title) },
+            { role: "system", content: lecturePrompt(course.courseTitle, chapter.title, section.title) },
             { role: "user", content: `请讲解"${section.title}"这一节的内容。` },
           ]);
           updateCache(sk, { lecture });
@@ -671,7 +673,7 @@ function LearnContent() {
         try {
           if (cached?.quiz?.questions?.length > 0) continue;
           const raw = await aiCall([
-            { role: "system", content: quizGenPrompt(course.courseTitle, lecture || cached?.lecture) },
+            { role: "system", content: quizPrompt(course.courseTitle, lecture || cached?.lecture) },
             { role: "user", content: "请根据上面的授课内容生成小测验。" },
           ], 20000);
           let quizData;
@@ -1110,10 +1112,18 @@ function QuizPanel({ title = "✍️ 小测验", questions, onAnswerChange, onSu
                 ))}
               </div>
             ) : (
-              <textarea value={q.userAnswer || ""} onChange={(e) => onAnswerChange(i, e.target.value)}
-                disabled={loading}
-                rows={3} placeholder="请输入你的答案..."
-                className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-black dark:text-zinc-100 focus:ring-2 focus:ring-indigo-500 outline-none resize-y text-sm disabled:opacity-60" />
+              <div className="latex-focus-group">
+                <textarea
+                  id={`quiz-answer-${i}`}
+                  value={q.userAnswer || ""} onChange={(e) => onAnswerChange(i, e.target.value)}
+                  disabled={loading}
+                  rows={3} placeholder="请输入你的答案..."
+                  className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-black dark:text-zinc-100 focus:ring-2 focus:ring-indigo-500 outline-none resize-y text-sm disabled:opacity-60"
+                />
+                <div className="latex-toolbar-wrap opacity-0 max-h-0 overflow-hidden transition-all duration-200">
+                  <LatexToolbar textareaId={`quiz-answer-${i}`} />
+                </div>
+              </div>
             )}
           </div>
         ))}
@@ -1781,67 +1791,6 @@ function FloatingHelper({ lecture, stage, sectionKey, courseId }) {
   );
 }
 
-// ===================== AI Prompts =====================
-function lectureSystemPrompt(courseTitle, chapterTitle, sectionTitle) {
-  return `你是智学伴的 AI 讲师。讲解课程内容。
-
-课程：${courseTitle}
-章节：${chapterTitle}
-本节：${sectionTitle}
-
-要求：
-- 通俗易懂，适当举例
-- 层次清晰（概念 → 详解 → 举例 → 小结）
-- 涉及公式用 LaTeX（行内 $...$，块级 $$...$$）
-- ⚠️ 严格控制 500-800 字，不要超过 800 字
-- Markdown 格式`;
-}
-
-function quizGenPrompt(courseTitle, lecture) {
-  return `你是智学伴的出题老师。根据以下授课内容出 3-5 道小测验题。
-
-课程：${courseTitle}
-授课内容：${lecture.slice(0, 2000)}
-
-⚠️ 出题原则：
-- ⛔ 纯文字题目：不得引用图片、图形、图表、表格。不得出现"如图所示"、"下图"、"看图"、"数一数下面"等需要视觉的表述。所有信息必须用文字描述。
-- 题目自包含：题目本身要说清所有条件和范围，不要让学生猜测"老师想考什么范围"
-- 测试理解而非挖坑：考学生对知识的理解，不要出那种"数学上对但超范围所以判错"的题
-- 如果学生的思路在逻辑上正确，即使和标准答案角度不同，也应当认可
-- 题型多样（单选、填空、简答），难度由浅入深
-- 每道题附上正确答案
-
-返回 JSON（不要 markdown 代码块）：
-{
-  "questions": [
-    {
-      "type": "choice|fill|short",
-      "question": "题目内容",
-      "options": ["A. x", "B. y", "C. z"],  // 仅选择题需要
-      "answer": "正确答案"
-    }
-  ]
-}`;
-}
-
-function practiceGenPrompt(courseTitle, lecture, weakPoints) {
-  return `你是智学伴的练习老师。根据以下内容和学生薄弱点，出 3-4 道针对性练习。
-
-课程：${courseTitle}
-薄弱点：${weakPoints}
-授课内容：${lecture.slice(0, 1500)}
-
-出题原则：
-- 纯文字，不得引用图片
-- 公式必须用 $...$（行内）$$...$$（块级），禁止用 \\(...\\)
-- options 仅选择题需要，填空/简答不要带 options 字段
-- 每题附正确答案 answer
-
-返回 JSON（不要 markdown 代码块）：
-{"questions":[{"type":"choice","question":"...","options":["A","B","C","D"],"answer":"B"},{"type":"fill","question":"...","answer":"..."},{"type":"short","question":"...","answer":"..."}]}`;
-}
-
-// ===================== 默认导出 =====================
 export default function LearnPage() {
   return (
     <Suspense fallback={<div className="text-center py-16 text-zinc-400">加载中...</div>}>

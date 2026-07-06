@@ -6,6 +6,7 @@ import { getExam, updateExam } from "@/lib/exams";
 import { getApiConfig } from "@/lib/api-key";
 import MarkdownRenderer from "@/components/MarkdownRenderer";
 import TokenToast, { streamAiCall } from "@/components/TokenToast";
+import LatexToolbar from "@/components/LatexToolbar";
 
 function typeLabel(type) {
   const map = { choice: "单选题", fill: "填空题", short: "简答题" };
@@ -263,9 +264,17 @@ function TakeExamContent() {
                 ))}
               </div>
             ) : (
-              <textarea value={q.userAnswer || ""} onChange={(e) => updateAnswer(i, e.target.value)}
-                rows={3} placeholder="请输入答案..."
-                className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-black dark:text-zinc-100 text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-y" />
+              <div className="latex-focus-group">
+                <textarea
+                  id={`exam-answer-${i}`}
+                  value={q.userAnswer || ""} onChange={(e) => updateAnswer(i, e.target.value)}
+                  rows={3} placeholder="请输入答案..."
+                  className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-black dark:text-zinc-100 text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-y"
+                />
+                <div className="latex-toolbar-wrap opacity-0 max-h-0 overflow-hidden transition-all duration-200">
+                  <LatexToolbar textareaId={`exam-answer-${i}`} />
+                </div>
+              </div>
             )}
           </div>
         ))}
