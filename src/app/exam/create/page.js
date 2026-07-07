@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { getApiConfig } from "@/lib/api-key";
 import { getAllCourses } from "@/lib/courses";
-import { addExam } from "@/lib/exams";
+import { addExam, getAllExams } from "@/lib/exams";
 import TokenToast, { streamAiCall } from "@/components/TokenToast";
 
 export default function CreateExamPage() {
@@ -35,6 +35,7 @@ export default function CreateExamPage() {
   async function handleGenerate() {
     if (!title.trim()) { setError("请输入试卷名称"); return; }
     if (!courseId) { setError("请选择关联课程"); return; }
+    if (getAllExams().some((e) => e.title === title.trim())) { setError("试卷名称已存在，请换一个"); return; }
 
     setGenerating(true);
     setError(null);
@@ -76,7 +77,7 @@ export default function CreateExamPage() {
             },
             { role: "user", content: `请生成一份《${title}》试卷，共${questionCount}题，限时${timeLimit}分钟。` },
           ],
-        maxTokens: 20000,
+        maxTokens: 40000,
       });
 
 
@@ -125,6 +126,9 @@ export default function CreateExamPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "解析失败");
       setImportFileText(data.text);
+      // 没命名的自动用文件名
+      const baseName = file.name.replace(/\.[^.]+$/, "");
+      if (!title.trim()) setTitle(baseName);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -136,6 +140,7 @@ export default function CreateExamPage() {
   async function handleImportGenerate() {
     if (!importFileText) { setError("请先上传试卷文件"); return; }
     if (!title.trim()) { setError("请输入试卷名称"); return; }
+    if (getAllExams().some((e) => e.title === title.trim())) { setError("试卷名称已存在，请换一个"); return; }
     setGenerating(true);
     setError(null);
 
@@ -178,12 +183,19 @@ export default function CreateExamPage() {
                 : `请模仿以下试卷风格出题（${questionCount}道）：\n\n${importFileText.slice(0, 15000)}`,
             },
           ],
-        maxTokens: 20000,
+        maxTokens: 40000,
       });
 
       let examData;
-      try { examData = JSON.parse(content.trim()); } catch {
-        examData = JSON.parse(content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim());
+      try {
+        const jsonMatch = content.match(/\{[\s\S]*\}/);
+        examData = JSON.parse(jsonMatch ? jsonMatch[0] : content);
+      } catch {
+        try {
+          examData = JSON.parse(content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim());
+        } catch {
+          throw new Error("AI 返回格式异常，请重试或减少题目数量");
+        }
       }
 
       const exam = addExam({
