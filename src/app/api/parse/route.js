@@ -14,12 +14,19 @@ export async function POST(request) {
     const ext = fileName.split(".").pop().toLowerCase();
 
     // 先尝试 Python 解析（本地环境更可靠）
-    const hasPython = (() => {
-      try { require("child_process").execSync("python --version", { stdio: "ignore" }); return true; }
-      catch { return false; }
-    })();
+    // 检测 Python 是否可用（Vercel 用 python3）
+    let pythonCmd = null;
+    try {
+      require("child_process").execSync("python3 --version", { stdio: "ignore" });
+      pythonCmd = "python3";
+    } catch {
+      try {
+        require("child_process").execSync("python --version", { stdio: "ignore" });
+        pythonCmd = "python";
+      } catch {}
+    }
 
-    if (hasPython && ["doc", "docx", "pdf", "pptx", "txt", "md", "zip"].includes(ext)) {
+    if (pythonCmd && ["doc", "docx", "pdf", "pptx", "txt", "md", "zip"].includes(ext)) {
       try {
         const os = require("os");
         const path = require("path");
@@ -29,7 +36,7 @@ export async function POST(request) {
         const tmpPath = path.join(os.tmpdir(), `zhixueban_${Date.now()}.${ext2}`);
         fs.writeFileSync(tmpPath, Buffer.from(await file.arrayBuffer()));
         const script = path.resolve(process.cwd(), "parse.py");
-        const result = execSync(`python "${script}" "${tmpPath}"`, {
+        const result = execSync(`${pythonCmd} "${script}" "${tmpPath}"`, {
           env: { ...process.env, PATH: process.env.PATH + ";C:\\Program Files\\Git\\mingw64\\bin" },
           encoding: "utf-8",
           timeout: 30000,
