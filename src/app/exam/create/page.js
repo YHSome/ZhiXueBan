@@ -15,6 +15,7 @@ export default function CreateExamPage() {
   const [questionCount, setQuestionCount] = useState(10);
   const [timeLimit, setTimeLimit] = useState(60);
   const [practiceMode, setPracticeMode] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState(null);
   const [mounted, setMounted] = useState(false);
@@ -121,6 +122,8 @@ export default function CreateExamPage() {
       const formData = new FormData();
       formData.append("file", file);
       const res = await fetch("/api/parse", { method: "POST", body: formData });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "解析失败");
       setImportFileText(data.text);
     } catch (e) {
       setError(e.message);
@@ -287,7 +290,24 @@ export default function CreateExamPage() {
               <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">上传试卷文件</label>
               <div
                 onClick={() => fileInputRef.current?.click()}
-                className="border-2 border-dashed border-zinc-300 dark:border-zinc-700 rounded-xl p-8 text-center cursor-pointer hover:border-indigo-400 transition-colors"
+                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setDragOver(true); }}
+                onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setDragOver(true); }}
+                onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setDragOver(false); }}
+                onDrop={(e) => {
+                  e.preventDefault(); e.stopPropagation(); setDragOver(false);
+                  const file = e.dataTransfer?.files?.[0];
+                  if (file && fileInputRef.current) {
+                    const dt = new DataTransfer();
+                    dt.items.add(file);
+                    fileInputRef.current.files = dt.files;
+                    handleImportFile({ target: { files: dt.files } });
+                  }
+                }}
+                className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${
+                  dragOver
+                    ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20 scale-[1.02]"
+                    : "border-zinc-300 dark:border-zinc-700 hover:border-indigo-400"
+                }`}
               >
                 <div className="text-3xl mb-2">📤</div>
                 <p className="text-zinc-600 dark:text-zinc-400 text-sm">点击上传 PDF/DOCX/TXT</p>

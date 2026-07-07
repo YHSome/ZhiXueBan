@@ -256,7 +256,7 @@ function TakeExamContent() {
             {q.options?.length > 0 ? (
               <div className="space-y-2">
                 {q.options.map((opt, oi) => (
-                  <label key={oi} className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors ${q.userAnswer === opt ? "bg-indigo-50 border border-indigo-200" : "hover:bg-zinc-50 border border-transparent"}`}>
+                  <label key={oi} className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors ${q.userAnswer === opt ? "bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-800" : "hover:bg-zinc-50 dark:hover:bg-zinc-800 border border-transparent"}`}>
                     <input type="radio" name={`q-${i}`} checked={q.userAnswer === opt} onChange={() => updateAnswer(i, opt)}
                       className="text-indigo-600" />
                     <span className="text-sm text-zinc-700 dark:text-zinc-300"><MarkdownRenderer content={String(opt)} /></span>

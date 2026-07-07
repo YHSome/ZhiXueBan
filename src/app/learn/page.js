@@ -316,7 +316,7 @@ function LearnContent() {
           ...q,
           verdict: r.verdict || (r.correct ? "correct" : "wrong"), // 兼容旧格式
           partialScore: r.score ?? null,
-          steps: r.steps || "",
+          steps: r.steps?.trim() || r.explanation?.trim() || "",
           feedback: r.feedback || "",
         };
       });
@@ -418,6 +418,7 @@ function LearnContent() {
           ...q,
           verdict: r.verdict || (r.correct ? "correct" : "wrong"),
           partialScore: r.score ?? null,
+          steps: r.steps?.trim() || "",
           feedback: r.feedback || "",
         };
       });
@@ -440,7 +441,13 @@ function LearnContent() {
     const key = activeKey();
     const cache = activeCache();
 
-    // 每次进入都重新收集最新错题
+    // 已有 teachBack 数据 → 保留进度，不重置
+    if (cache.teachBack?.wrongQuestions?.length > 0) {
+      updateCache(key, { stage: STAGE.TEACH_BACK });
+      return;
+    }
+
+    // 首次进入 → 收集错题
     const quizQuestions = cache.quiz?.questions || [];
     const practiceQuestions = cache.practice?.questions || [];
     const wrongQuestions = [
@@ -486,28 +493,7 @@ function LearnContent() {
       const answer = await aiCall([
         {
           role: "system",
-          content: `你是智学伴的"以教促学"导师。学生正在向你讲解一道他之前做错的题。
-
-原题：${wrongQ?.question || "无"}
-正确答案：${wrongQ?.answer || "无"}
-学生之前的错误答案：${wrongQ?.userAnswer || "无"}
-
-你的角色：扮演一位"学生"，听对方讲解这道题。
-
-⚠️ 核心原则——差不多懂就行，不要抠字眼：
-- 学生用大白话讲清楚了思路 → 立刻通过，不要逼他用术语或算式
-- 学生表现出对概念的理解，即使表达不完美 → 通过
-- 只在学生明显逻辑不通、完全没搞懂时才追问
-- 不要反复追问"为什么用加法不用减法"之类的细枝末节
-- 最多追问一次，第二次还讲得通就通过
-
-判断标准：这学生是真懂还是蒙的？
-- 真懂（哪怕最土的话）→ 直接 ✅ APPROVED
-- 蒙的（逻辑矛盾）→ 温和追问一次
-
-回复格式：
-- 通过：回复 "✅ APPROVED: 你的理解是对的！" 并简单肯定
-- 追问：用口语化语气简短追问一句，不要长篇大论`,
+          content: teachBackPrompt(wrongQ),
         },
         ...updated,
       ], 1000);
@@ -966,7 +952,7 @@ function LearnContent() {
             </p>
           )}
           <div className="flex gap-3 justify-center">
-            <button onClick={resetSection} className="px-6 py-3 rounded-lg border border-zinc-300 text-zinc-600 hover:bg-zinc-50">
+            <button onClick={restartSection} className="px-6 py-3 rounded-lg border border-zinc-300 text-zinc-600 hover:bg-zinc-50">
               🔄 重新学习
             </button>
             <button onClick={() => setActiveSection(null)} className="px-6 py-3 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700">
@@ -1444,6 +1430,13 @@ function TeachBackPanel({ teachBack, onSend, loading, onNext }) {
         {wrongQ && (
           <div className="bg-white dark:bg-zinc-800 rounded-lg p-4 border border-amber-200 dark:border-amber-800">
             <p className="text-sm font-medium text-black dark:text-zinc-100 mb-1">{wrongQ.question}</p>
+            {wrongQ.options?.length > 0 && (
+              <div className="flex flex-wrap gap-1 mb-2">
+                {wrongQ.options.map((opt) => (
+                  <span key={opt} className={`text-xs px-2 py-0.5 rounded ${opt === wrongQ.userAnswer ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400" : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500"}`}>{opt}</span>
+                ))}
+              </div>
+            )}
             <div className="flex gap-4 mt-2">
               {teachBack.chatMessages?.filter((m) => m.role === "assistant").slice(-1)[0]?.content?.includes("✅ APPROVED") ? (
                 <span className="text-xs text-green-600">正确答案：<MarkdownRenderer content={wrongQ.answer} /></span>
