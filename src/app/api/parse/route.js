@@ -13,8 +13,13 @@ export async function POST(request) {
     const fileName = file.name || "";
     const ext = fileName.split(".").pop().toLowerCase();
 
-    // 先尝试 Python 解析（更可靠，支持更多格式）
-    if (["doc", "docx", "pdf", "pptx", "txt", "md", "zip"].includes(ext)) {
+    // 先尝试 Python 解析（本地环境更可靠）
+    const hasPython = (() => {
+      try { require("child_process").execSync("python --version", { stdio: "ignore" }); return true; }
+      catch { return false; }
+    })();
+
+    if (hasPython && ["doc", "docx", "pdf", "pptx", "txt", "md", "zip"].includes(ext)) {
       try {
         const os = require("os");
         const path = require("path");
@@ -29,17 +34,13 @@ export async function POST(request) {
           encoding: "utf-8",
           timeout: 30000,
         });
-        fs.unlinkSync(tmpPath);
+        try { fs.unlinkSync(tmpPath); } catch {}
         const data = JSON.parse(result);
         if (data.text) {
           return Response.json({ text: data.text, fileName });
         }
-        if (data.error) {
-          // Python 解析出错，回退到 JS
-          console.warn("Python 解析失败:", data.error, "，回退到 JS");
-        }
       } catch (e) {
-        console.warn("Python 解析异常:", e.message, "，回退到 JS");
+        console.warn("Python 解析回退到 JS:", e.message?.slice(0, 100));
       }
     }
 
@@ -122,8 +123,10 @@ async function parseBuffer(buffer, ext) {
 
   if (ext === "pdf") {
     const pdfjsLib = require("pdfjs-dist/legacy/build/pdf.mjs");
+    pdfjsLib.GlobalWorkerOptions.workerSrc = "";
     const doc = await pdfjsLib.getDocument({
       data: new Uint8Array(buffer),
+      disableWorker: true,
     }).promise;
 
     const pages = [];
