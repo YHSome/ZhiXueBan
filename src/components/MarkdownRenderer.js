@@ -23,6 +23,7 @@ function wrapBody(body) {
 }
 
 export default function MarkdownRenderer({ content }) {
+  if (!content || typeof content !== "string") return null;
   // 解码所有 HTML 实体
   const decoded = content
     .replace(/&amp;/g, "&")

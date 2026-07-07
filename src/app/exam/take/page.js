@@ -122,9 +122,9 @@ function TakeExamContent() {
 - 简答题：逻辑正确即判对，不抠字眼。部分正确给一半分。
 - 学生答案逻辑正确即判对，不拘泥于标准答案的表述。
 
-每题返回：verdict("correct"/"wrong"/"partial"), score(0-1, partial时有效), feedback
+每题返回：verdict("correct"/"wrong"/"partial"), score(0-1, partial时有效), steps（详细解析，必填）, feedback
 
-返回 JSON：{"results":[{"verdict":"correct","score":null,"feedback":"..."}],"totalScore":85,"suggestion":"..."}`,
+返回 JSON：{"results":[{"verdict":"correct","score":null,"steps":"详细解题步骤","feedback":"点评"}],"totalScore":85,"suggestion":"..."}`,
           },
           { role: "user", content: qaText },
         ],
@@ -133,7 +133,7 @@ function TakeExamContent() {
 
       let reviewData;
       try {
-        const jsonMatch = data.content.match(/\{[\s\S]*\}/);
+        const jsonMatch = content.match(/\{[\s\S]*\}/);
         reviewData = JSON.parse(jsonMatch ? jsonMatch[0] : content);
       } catch {
         try {
@@ -145,7 +145,7 @@ function TakeExamContent() {
 
       const reviewedQuestions = exam.questions.map((q, i) => {
         const r = reviewData.results?.[i] || {};
-        return { ...q, verdict: r.verdict || "wrong", partialScore: r.score ?? null, feedback: r.feedback || "" };
+        return { ...q, verdict: r.verdict || "wrong", partialScore: r.score ?? null, steps: r.steps?.trim() || "", feedback: r.feedback || "" };
       });
 
       setReview({ ...reviewData, questions: reviewedQuestions, elapsed });
@@ -214,6 +214,12 @@ function TakeExamContent() {
                     )}
                     {v !== "correct" && <div className="text-xs text-green-600 mt-1">正确答案：<MarkdownRenderer content={q.answer} /></div>}
                     {q.feedback && <div className="text-xs text-zinc-500 mt-1 italic"><MarkdownRenderer content={q.feedback} /></div>}
+                    {q.steps && (
+                      <details className="mt-2">
+                        <summary className="text-xs font-medium text-indigo-600 dark:text-indigo-400 cursor-pointer">📝 详细解析</summary>
+                        <div className="mt-1 text-xs text-zinc-600 dark:text-zinc-400"><MarkdownRenderer content={q.steps} /></div>
+                      </details>
+                    )}
                   </div>
                 </div>
               </div>

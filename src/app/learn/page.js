@@ -1567,16 +1567,18 @@ function QuizReviewCombined({ title, questions, review, onSubmit, onPractice, on
                   </div>
                 </div>
               </div>
-              {q.steps && (
-                <details className="border-t border-inherit">
+              {q.steps ? (
+                <details className="border-t border-inherit" open>
                   <summary className="px-4 py-2 text-xs font-medium text-indigo-600 dark:text-indigo-400 cursor-pointer hover:bg-white/50 dark:hover:bg-zinc-800/50">
-                    📝 查看详细解题步骤
+                    📝 详细解析
                   </summary>
                   <div className="px-4 pb-4 pt-2 bg-white/50 dark:bg-zinc-800/50">
                     <MarkdownRenderer content={q.steps} />
                   </div>
                 </details>
-              )}
+              ) : !q.correct ? (
+                <div className="px-4 py-2 text-xs text-zinc-400 italic">无详细解析</div>
+              ) : null}
             </div>
           );
         })}
