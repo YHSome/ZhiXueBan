@@ -9,6 +9,23 @@ import MarkdownRenderer from "@/components/MarkdownRenderer";
 import TokenToast, { streamAiCall, updateTokenToast } from "@/components/TokenToast";
 import { lecturePrompt, quizPrompt, practicePrompt, gradingPrompt, teachBackPrompt } from "@/lib/prompts";
 import LatexToolbar from "@/components/LatexToolbar";
+import GeoGebraView from "@/components/GeoGebraView";
+
+function splitGraphBlocks(text, blocks) {
+  const parts = [];
+  const regex = /<!--graph:(\d+)-->/g;
+  let last = 0;
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > last) parts.push({ text: text.slice(last, match.index) });
+    const idx = parseInt(match[1]);
+    if (blocks[idx]) parts.push({ geo: blocks[idx] });
+    last = match.index + match[0].length;
+  }
+  if (last < text.length) parts.push({ text: text.slice(last) });
+  if (parts.length === 0) parts.push({ text });
+  return parts;
+}
 
 // ===================== 阶段枚举 =====================
 const STAGE = {
@@ -158,8 +175,15 @@ function LearnContent() {
         { role: "system", content: lecturePrompt(course.courseTitle, chapter.title, section.title) },
         { role: "user", content: `请讲解"${section.title}"这一节的内容。` },
       ]);
-      updateCache(key, { lecture: result, chatMessages: [] });
-      // 后台预生成小测题目
+      // 提取 [graph]...[/graph] 及 ```graph ... ``` 块，API 侧自动处理内部格式
+      const graphBlocks = [];
+      const lectureText = result.replace(/\[graph\]([\s\S]*?)\[\/graph\]|```graph\s*\n([\s\S]*?)\n\s*```/gi, (match, g1, g2) => {
+        const body = (g1 || g2 || "").trim();
+        if (!body) return "";
+        graphBlocks.push(body);
+        return `<!--graph:${graphBlocks.length - 1}-->`;
+      }).trim();
+      updateCache(key, { lecture: lectureText, graphBlocks: graphBlocks.length > 0 ? graphBlocks : null, chatMessages: [] });
       prefetchNextStage();
     } catch (e) {
       updateCache(key, { lecture: `❌ 生成失败：${e.message}` });
@@ -837,7 +861,12 @@ function LearnContent() {
               <span className="text-xl">📖</span>
               <h3 className="font-semibold text-indigo-800 dark:text-indigo-300">预习阅读</h3>
             </div>
-            <MarkdownRenderer content={cache.lecture || "加载中..."} />
+            {(cache.graphBlocks ? splitGraphBlocks(cache.lecture, cache.graphBlocks) : [{ text: cache.lecture }]).map((seg, i) => (
+              <div key={i}>
+                {seg.text && <MarkdownRenderer content={seg.text} />}
+                {seg.geo != null && <div className="my-4"><GeoGebraView commands={seg.geo} height={300} /></div>}
+              </div>
+            ))}
           </div>
           {(typeof loading !== "undefined" ? loading : isLoading()) && <LoadingHint text="AI 正在备课..." />}
           {!isLoading() && (
