@@ -1,18 +1,7 @@
 // AI 提示词集中管理
 
-export function lecturePrompt(courseTitle, chapterTitle, sectionTitle) {
-  return `你是智学伴的 AI 讲师。讲解课程内容。
-
-课程：${courseTitle}
-章节：${chapterTitle}
-本节：${sectionTitle}
-
-要求：
-- 通俗易懂，适当举例
-- 层次清晰（概念 → 详解 → 举例 → 小结）
-- 涉及公式用 LaTeX（行内 $...$，块级 $$...$$）
-- ⚠️ 严格控制 500-800 字，不要超过 800 字
-- Markdown 格式
+// ── 配图格式说明块（仅 hasGraph=true 时追加）──
+const GRAPH_BLOCK = `
 - 配图模板（必须严格遵守，一字不差）：
 
   [graph]前缀:表达式|xmin|xmax|ymin|ymax|标题[/graph]
@@ -36,35 +25,61 @@ export function lecturePrompt(courseTitle, chapterTitle, sectionTitle) {
     [graph]3d:x**2+y**2|-3|3|-3|3|0|18|抛物面[/graph]
   🚫 严禁：写 y:（必须 y=）、写 -4<=x<=5（必须 |-4|5|...）、写 ^（必须 **）、省略乘号 2x（必须 2*x）
   🚫 自变量必须用 x！不管题目原来是 t/θ/n 什么字母，表达式中统一写成 x
-  🚫 LaTeX 禁止用 \begin{cases}（会被转义破坏），分段函数用 [graph]pw: 画图 + 文字描述
-  🚫 LaTeX 禁止用 \\[2pt] 等间距命令，换行用 \\
+  🚫 LaTeX 禁止用 \\begin{cases}（会被转义破坏），分段函数用 [graph]pw: 画图 + 文字描述
+  🚫 LaTeX 禁止用 \\\\[2pt] 等间距命令，换行用 \\\\
   💡 可读性：ymin/ymax 根据函数值域合理设置（如 y=100x 时 y 范围写 -100|100 而非 -5|5），xy 差距过大时系统会自动拉伸`;
+
+const QUIZ_GRAPH_BLOCK = `
+配图模板（严格遵守）：
+  [graph]前缀:表达式|xmin|xmax|ymin|ymax|标题[/graph]
+  前缀: y=显函数 / eq:隐式方程 / multi:多函数 / pw:分段 / 3d:三维(7段参数)
+  🚫 严禁 y: -4<=x<=5 ^ 2x 等格式。自变量必须用 x`;
+
+// ══════════════════════════════════════════════
+export function lecturePrompt(courseTitle, chapterTitle, sectionTitle, hasGraph = false) {
+  return `你是智学伴的 AI 讲师。讲解课程内容。
+
+课程：${courseTitle}
+章节：${chapterTitle}
+本节：${sectionTitle}
+
+要求：
+- 通俗易懂，适当举例
+- 层次清晰（概念 → 详解 → 举例 → 小结）
+- 涉及公式用 LaTeX（行内 $...$，块级 $$...$$）
+- ⚠️ 严格控制 500-800 字，不要超过 800 字
+- Markdown 格式${hasGraph ? GRAPH_BLOCK : ""}`;
 }
 
-export function quizPrompt(courseTitle, lecture) {
+export function quizPrompt(courseTitle, lecture, hasGraph = false) {
+  const graphReq = hasGraph
+    ? `- 🔥 必须配图：涉及函数、方程、几何、曲线关系的题目，必须在 question 文字中插入 [graph]...[/graph]。越复杂的题越要配图（如求交点、判断大小关系、分析函数性质等），简单概念题可以纯文字
+- 配图直接嵌入题目文字中，让学生能看图作答。不允许出现"如图所示"但没图的情况
+${QUIZ_GRAPH_BLOCK}`
+    : `- ⛔ 纯文字题目：不得引用图片、图形、图表。不得出现"如图所示"、"下图"、"看图"等表述`;
+
   return `你是智学伴的出题老师。根据以下授课内容出 3-5 道小测验题。
 
 课程：${courseTitle}
 授课内容：${lecture.slice(0, 2000)}
 
 ⚠️ 出题原则：
-- 🔥 必须配图：涉及函数、方程、几何、曲线关系的题目，必须在 question 文字中插入 [graph]...[/graph]。越复杂的题越要配图（如求交点、判断大小关系、分析函数性质等），简单概念题可以纯文字
-- 配图直接嵌入题目文字中，让学生能看图作答。不允许出现"如图所示"但没图的情况
+${graphReq}
 - 题目自包含：题目本身要说清所有条件和范围
 - 测试理解而非挖坑：考学生对知识的理解
 - 题型多样（单选、填空、简答），难度由浅入深
 - 每道题附上正确答案
 
-配图模板（严格遵守）：
-  [graph]前缀:表达式|xmin|xmax|ymin|ymax|标题[/graph]
-  前缀: y=显函数 / eq:隐式方程 / multi:多函数 / pw:分段 / 3d:三维(7段参数)
-  🚫 严禁 y: -4<=x<=5 ^ 2x 等格式。自变量必须用 x
-
 返回 JSON（不要 markdown 代码块）：
 {"questions":[{"type":"choice|fill|short","question":"...","options":["A. x","B. y"],"answer":"..."}]}`;
 }
 
-export function practicePrompt(courseTitle, lecture, weakPoints) {
+export function practicePrompt(courseTitle, lecture, weakPoints, hasGraph = false) {
+  const graphReq = hasGraph
+    ? `- 🔥 必须配图：涉及函数图像、方程曲线、几何关系、多函数对比的题目，必须在 question 中插入 [graph]...[/graph]。越难越要配图！简单纯概念题可以纯文字
+${QUIZ_GRAPH_BLOCK}`
+    : `- 纯文字题目，公式必须用 $...$（行内）$$...$$（块级）`;
+
   return `你是智学伴的练习老师。根据以下内容和学生薄弱点，出 3-4 道针对性练习。
 
 课程：${courseTitle}
@@ -72,13 +87,8 @@ export function practicePrompt(courseTitle, lecture, weakPoints) {
 授课内容：${lecture.slice(0, 1500)}
 
 出题原则：
-- 🔥 必须配图：涉及函数图像、方程曲线、几何关系、多函数对比的题目，必须在 question 中插入 [graph]...[/graph]。越难越要配图！简单纯概念题可以纯文字
-- 公式必须用 $...$（行内）$$...$$（块级）。options 仅选择题需要，填空/简答不要带 options 字段
-
-配图模板（严格遵守）：
-  [graph]前缀:表达式|xmin|xmax|ymin|ymax|标题[/graph]
-  前缀: y=显函数 / eq:隐式方程 / multi:多函数 / pw:分段 / 3d:三维(7段参数)
-  🚫 严禁 y: -4<=x<=5 ^ 2x 等格式。自变量必须用 x
+${graphReq}
+- options 仅选择题需要，填空/简答不要带 options 字段
 
 返回 JSON：{"questions":[{"type":"choice","question":"...","options":["A","B"],"answer":"B"},{"type":"fill","question":"...","answer":"..."}]}`;
 }

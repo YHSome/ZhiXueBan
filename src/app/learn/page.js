@@ -8,6 +8,7 @@ import { getAllExams, deleteExam } from "@/lib/exams";
 import MarkdownRenderer from "@/components/MarkdownRenderer";
 import TokenToast, { streamAiCall, updateTokenToast } from "@/components/TokenToast";
 import { lecturePrompt, quizPrompt, practicePrompt, gradingPrompt, teachBackPrompt } from "@/lib/prompts";
+import { checkGraphSupport, getCachedGraphSupport } from "@/lib/graph-support";
 import LatexToolbar from "@/components/LatexToolbar";
 import GeoGebraView from "@/components/GeoGebraView";
 
@@ -51,7 +52,13 @@ function LearnContent() {
   const [activeSection, setActiveSection] = useState(null);
   const [sectionCache, setSectionCache] = useState({});
   const [prefillLoading, setPrefillLoading] = useState(false);
+  const [hasGraph, setHasGraph] = useState(() => getCachedGraphSupport());
   const chatEndRef = useRef(null);
+
+  // 检测 Python 图形支持
+  useEffect(() => {
+    checkGraphSupport().then(setHasGraph);
+  }, []);
 
   // 分节 loading：不用全局锁，当前小节加载中才算
   function isLoading() {
@@ -172,7 +179,7 @@ function LearnContent() {
     const section = chapter.sections[si];
     try {
       const result = await aiCall([
-        { role: "system", content: lecturePrompt(course.courseTitle, chapter.title, section.title) },
+        { role: "system", content: lecturePrompt(course.courseTitle, chapter.title, section.title, hasGraph) },
         { role: "user", content: `请讲解"${section.title}"这一节的内容。` },
       ]);
       // 提取 [graph]...[/graph] 及 ```graph ... ``` 块，API 侧自动处理内部格式
@@ -206,7 +213,7 @@ function LearnContent() {
     setCurrentLoading(true);
     try {
       const raw = await aiCall([
-        { role: "system", content: quizPrompt(course.courseTitle, cache.lecture) },
+        { role: "system", content: quizPrompt(course.courseTitle, cache.lecture, hasGraph) },
         { role: "user", content: "请根据上面的授课内容生成小测验。" },
       ], 20000);
 
@@ -373,7 +380,7 @@ function LearnContent() {
     try {
       const weakPoints = cache.review?.weakPoints?.join("、") || "综合";
       const raw = await aiCall([
-        { role: "system", content: practicePrompt(course.courseTitle, cache.lecture, weakPoints) },
+        { role: "system", content: practicePrompt(course.courseTitle, cache.lecture, weakPoints, hasGraph) },
         { role: "user", content: "请根据薄弱点生成针对性练习。" },
       ], 20000);
 
@@ -611,7 +618,7 @@ function LearnContent() {
     if (stage === STAGE.READING && cache.lecture && (!cache.quiz || cache.quiz.questions?.[0]?.type === "error")) {
       try {
         const raw = await aiCall([
-          { role: "system", content: quizPrompt(course.courseTitle, cache.lecture) },
+          { role: "system", content: quizPrompt(course.courseTitle, cache.lecture, hasGraph) },
           { role: "user", content: "请根据上面的授课内容生成小测验。" },
         ], 20000);
         let quizData;
@@ -631,7 +638,7 @@ function LearnContent() {
       try {
         const weakPoints = cache.review?.weakPoints?.join("、") || "综合";
         const raw = await aiCall([
-          { role: "system", content: practicePrompt(course.courseTitle, cache.lecture, weakPoints) },
+          { role: "system", content: practicePrompt(course.courseTitle, cache.lecture, weakPoints, hasGraph) },
           { role: "user", content: "请根据薄弱点生成针对性练习。" },
         ], 20000);
         let practiceData;
@@ -674,7 +681,7 @@ function LearnContent() {
         const section = chapter.sections[si];
         try {
           const lecture = await aiCall([
-            { role: "system", content: lecturePrompt(course.courseTitle, chapter.title, section.title) },
+            { role: "system", content: lecturePrompt(course.courseTitle, chapter.title, section.title, hasGraph) },
             { role: "user", content: `请讲解"${section.title}"这一节的内容。` },
           ]);
           updateCache(sk, { lecture });
@@ -683,7 +690,7 @@ function LearnContent() {
         try {
           if (cached?.quiz?.questions?.length > 0) continue;
           const raw = await aiCall([
-            { role: "system", content: quizPrompt(course.courseTitle, lecture || cached?.lecture) },
+            { role: "system", content: quizPrompt(course.courseTitle, lecture || cached?.lecture, hasGraph) },
             { role: "user", content: "请根据上面的授课内容生成小测验。" },
           ], 20000);
           let quizData;
