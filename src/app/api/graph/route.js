@@ -35,6 +35,9 @@ export async function POST(request) {
 
     // 预处理：将 AI 可能输出的数学格式转为 Python 语法
     const processedLines = lines.map((line) => {
+      // 去除参数标签：xmin=0|xmax=35 → 0|35
+      line = line.replace(/\|(xmin|xmax|ymin|ymax|zmin|zmax)=/gi, "|");
+
       // 展开定义域简写：将 "y:expr| -4<=x<=5 |标题" → "y:expr|-4|5|-4|5|标题"
       line = line.replace(/\|\s*(-?\d+(?:\.\d+)?)\s*<=\s*x\s*<=\s*(-?\d+(?:\.\d+)?)\s*\|/g,
         (_, xMin, xMax) => `|${xMin}|${xMax}|${xMin}|${xMax}|`);
@@ -58,6 +61,10 @@ export async function POST(request) {
       else if (expr.startsWith("multi:")) {
         prefix = "multi:";
         expr = expr.slice(6).trim();
+        // 如果 AI 误用逗号分隔且没有分号，将逗号视为分号
+        if (!expr.includes(";") && expr.includes(",")) {
+          expr = expr.replace(/,/g, ";");
+        }
         // 剥离每个子表达式的 y=/eq: 前缀（兼容空格变体如 "y = x"）
         expr = expr.split(";").map((sub) => {
           let s = sub.trim().replace(/^(?:eq|y)\s*[:=]\s*/, "");
@@ -93,6 +100,12 @@ export async function POST(request) {
         return `${num}*${letter}`;
       });
 
+      // 修复省略乘号：)( → )*( 、)变量 → )*变量 、数字( → 数字*(
+      // 例如 (x+2)(x-4) → (x+2)*(x-4), 2(x+1) → 2*(x+1), (x+1)x → (x+1)*x
+      expr = expr.replace(/\)\(/g, ')*(');
+      expr = expr.replace(/\)([a-zA-Z])/g, ')*$1');
+      expr = expr.replace(/(\d)\(/g, '$1*(');
+
       // 纯数字常量 → 包装为 np.ones_like(x)*N（避免 formula_to_image.py 报错）
       if (/^-?\d+(?:\.\d+)?$/.test(expr)) {
         expr = `np.ones_like(x)*(${expr})`;
@@ -127,6 +140,17 @@ export async function POST(request) {
 
     const processedInput = processedLines.join("\n");
     console.log("[Graph API] Input:", JSON.stringify(expression.slice(0, 200)), "→ Processed:", JSON.stringify(processedInput.slice(0, 200)));
+
+    // 累积 Python 输出（错误 + stdout）
+    let pythonError = "";
+    function runPy(cmd) {
+      try {
+        return execSync(cmd, { encoding: "utf-8", timeout: 30000, cwd: workDir, shell: true, stdio: "pipe" });
+      } catch (e) {
+        pythonError += (e.stdout || "") + "\n" + (e.stderr || "") + "\n" + (e.message || "") + "\n";
+        return "";
+      }
+    }
 
     // 检测是否为 3d: 三维曲面（formula_to_image.py 不支持）
     const firstLine = processedLines[0] || "";
@@ -276,9 +300,7 @@ print(f"OK {OUTPUT}")
 `.trim();
 
       fs.writeFileSync(pwScriptPath, pyScriptPW, "utf-8");
-      execSync(`${pythonCmd} "${pwScriptPath}"`, {
-        encoding: "utf-8", timeout: 30000, cwd: workDir, shell: true,
-      });
+      pythonError += runPy(`${pythonCmd} "${pwScriptPath}"`) || "";
 
     } else if (is3D) {
       // 内联 Python 脚本：matplotlib 3D 曲面
@@ -364,9 +386,7 @@ print(f"OK {OUTPUT}")
 `.trim();
 
       fs.writeFileSync(script3dPath, pyScript3D, "utf-8");
-      execSync(`${pythonCmd} "${script3dPath}"`, {
-        encoding: "utf-8", timeout: 30000, cwd: workDir, shell: true,
-      });
+      pythonError += runPy(`${pythonCmd} "${script3dPath}"`) || "";
 
     } else if (isMultiImplicit) {
       // 使用内联 Python 脚本处理多隐式方程组合图
@@ -461,26 +481,19 @@ print(f"OK {OUTPUT}")
 `.trim();
 
       fs.writeFileSync(multiScriptPath, pyScript, "utf-8");
-      execSync(`${pythonCmd} "${multiScriptPath}"`, {
-        encoding: "utf-8", timeout: 30000, cwd: workDir, shell: true,
-      });
+      pythonError += runPy(`${pythonCmd} "${multiScriptPath}"`) || "";
     } else {
       // 普通模式：使用 formula_to_image.py
       fs.writeFileSync(inputFile, processedInput, "utf-8");
       const scriptPath = path.resolve(process.cwd(), "formula_to_image.py");
-      execSync(`${pythonCmd} "${scriptPath}" "${inputFile}" "${outputDir}"`, {
-        encoding: "utf-8",
-        timeout: 30000,
-        cwd: workDir,
-        shell: true,
-      });
+      pythonError += runPy(`${pythonCmd} "${scriptPath}" "${inputFile}" "${outputDir}"`) || "";
     }
 
     // 读取生成的图片
     const files = fs.readdirSync(outputDir).filter((f) => f.endsWith(".png"));
     if (files.length === 0) {
       try { fs.rmSync(workDir, { recursive: true }); } catch {}
-      return Response.json({ error: "图形渲染失败，未生成图片" }, { status: 500 });
+      return Response.json({ error: "图形渲染失败，未生成图片", detail: pythonError.slice(0, 500) }, { status: 500 });
     }
 
     const imgBuffer = fs.readFileSync(path.join(outputDir, files[0]));
@@ -494,6 +507,7 @@ print(f"OK {OUTPUT}")
     });
   } catch (e) {
     console.error("Graph API error:", e.message, e.stderr || "");
-    return Response.json({ error: `渲染失败：${e.message?.slice(0, 200)}` }, { status: 500 });
+    const detail = (e.stderr || e.message || pythonError || "").slice(0, 500);
+    return Response.json({ error: "渲染失败", detail }, { status: 500 });
   }
 }

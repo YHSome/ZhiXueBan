@@ -4,6 +4,8 @@ const STORAGE_KEYS = {
   API_KEY: "zhixueban-api-key",
   API_BASE_URL: "zhixueban-api-base",
   API_MODEL: "zhixueban-api-model",
+  DIFFICULTY: "zhixueban-difficulty",
+  DEV_MODE: "zhixueban-dev-mode",
 };
 
 // 默认值
@@ -48,6 +50,28 @@ export function setApiModel(model) {
 // 检查是否已配置 API Key
 export function hasApiKey() {
   return !!getApiKey();
+}
+
+// ── 开发者模式 ──
+export function getDevMode() {
+  if (typeof window === "undefined") return false;
+  return localStorage.getItem(STORAGE_KEYS.DEV_MODE) === "1";
+}
+export function setDevMode(on) { localStorage.setItem(STORAGE_KEYS.DEV_MODE, on ? "1" : "0"); }
+
+// ── 难度 ──
+export function getDifficulty() {
+  if (typeof window === "undefined") return "normal";
+  return localStorage.getItem(STORAGE_KEYS.DIFFICULTY) || "normal";
+}
+export function setDifficulty(level) { localStorage.setItem(STORAGE_KEYS.DIFFICULTY, level); }
+export function getDifficultyOptions() {
+  return [
+    { value: "easy", label: "简单", desc: "基础概念，入门练习" },
+    { value: "normal", label: "基础", desc: "常规难度，巩固理解" },
+    { value: "hard", label: "进阶", desc: "综合运用，高阶挑战" },
+    { value: "challenge", label: "挑战", desc: "竞赛级别，深度推理" },
+  ];
 }
 
 // 清除所有配置

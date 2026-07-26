@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { setApiKey, setApiBaseUrl, setApiModel, getApiKey, getApiBaseUrl, getApiModel } from "@/lib/api-key";
+import { setApiKey, setApiBaseUrl, setApiModel, getApiKey, getApiBaseUrl, getApiModel, getDifficulty, setDifficulty, getDifficultyOptions, getDevMode, setDevMode } from "@/lib/api-key";
 import { validateApiKey } from "@/lib/ai";
 import { getFontSize, setFontSize } from "@/lib/font-size";
 
@@ -15,15 +15,23 @@ export default function SetupPage() {
   const [message, setMessage] = useState(null);
   const [loaded, setLoaded] = useState(false);
   const [fontSize, setFontSizeState] = useState("standard");
+  const [difficulty, setDifficultyState] = useState("normal");
+  const [devMode, setDevModeState] = useState(false);
 
-  // 客户端挂载后从 localStorage 加载已保存的配置
   useEffect(() => {
     setApiKeyState(getApiKey() || "");
     setBaseUrl(getApiBaseUrl() || "https://api.openai.com/v1");
     setModel(getApiModel() || "gpt-4o");
     setFontSizeState(getFontSize());
+    setDifficultyState(getDifficulty());
+    setDevModeState(getDevMode());
     setLoaded(true);
   }, []);
+
+  function handleDifficultyChange(level) {
+    setDifficultyState(level);
+    setDifficulty(level);
+  }
 
   function handleFontSizeChange(size) {
     setFontSizeState(size);
@@ -125,6 +133,27 @@ export default function SetupPage() {
         </div>
       </div>
 
+      {/* 难度 */}
+      {loaded && (
+        <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-6 mb-6">
+          <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-3">📊 出题难度</label>
+          <div className="flex gap-2">
+            {getDifficultyOptions().map((opt) => (
+              <button key={opt.value} onClick={() => handleDifficultyChange(opt.value)}
+                className={`flex-1 py-3 rounded-lg border-2 text-sm transition-colors ${
+                  difficulty === opt.value
+                    ? opt.value === "challenge" ? "border-red-500 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300"
+                    : opt.value === "easy" ? "border-green-500 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300"
+                    : "border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300"
+                    : "border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400"}`}>
+                <div className="font-medium">{opt.label}</div>
+                <div className="text-xs opacity-60 mt-0.5">{opt.desc}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* 字号 */}
       <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-6 mb-6">
         <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-3">字号</label>
@@ -143,6 +172,23 @@ export default function SetupPage() {
           </button>
         </div>
       </div>
+
+      {/* 开发者模式 */}
+      {loaded && (
+        <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-6 mb-6">
+          <label className="flex items-center justify-between cursor-pointer">
+            <div>
+              <div className="text-sm font-medium text-zinc-700 dark:text-zinc-300">🛠 开发者模式</div>
+              <div className="text-xs text-zinc-400 mt-0.5">显示图形参数、调试信息</div>
+            </div>
+            <button
+              onClick={() => { setDevModeState(!devMode); setDevMode(!devMode); }}
+              className={`relative w-11 h-6 rounded-full transition-colors ${devMode ? "bg-indigo-500" : "bg-zinc-300 dark:bg-zinc-600"}`}>
+              <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${devMode ? "translate-x-5" : ""}`} />
+            </button>
+          </label>
+        </div>
+      )}
 
       {/* 快捷切换 */}
       <div className="mb-6">

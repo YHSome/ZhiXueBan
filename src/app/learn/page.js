@@ -2,7 +2,7 @@
 
 import { Suspense, useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { getApiConfig } from "@/lib/api-key";
+import { getApiConfig, getDifficulty } from "@/lib/api-key";
 import { getAllCourses, getCourse, deleteCourse } from "@/lib/courses";
 import { getAllExams, deleteExam } from "@/lib/exams";
 import MarkdownRenderer from "@/components/MarkdownRenderer";
@@ -26,6 +26,18 @@ function splitGraphBlocks(text, blocks) {
   if (last < text.length) parts.push({ text: text.slice(last) });
   if (parts.length === 0) parts.push({ text });
   return parts;
+}
+
+function Stars({ stars }) {
+  if (!stars || stars < 1) return null;
+  const filled = Math.min(6, Math.max(1, Math.round(stars)));
+  return (
+    <span className="inline-flex items-center gap-0.5 ml-2 text-xs" title={`难度 ${filled}/6 星`}>
+      {Array.from({ length: 6 }, (_, i) => (
+        <span key={i} className={i < filled ? "text-amber-400" : "text-zinc-300 dark:text-zinc-600"}>★</span>
+      ))}
+    </span>
+  );
 }
 
 // ===================== 阶段枚举 =====================
@@ -58,6 +70,45 @@ function LearnContent() {
   // 检测 Python 图形支持
   useEffect(() => {
     checkGraphSupport().then(setHasGraph);
+  }, []);
+
+  // 注册全局图形修复回调
+  useEffect(() => {
+    window.__zhixueban_graphFix = async (failedExpr, errorMsg) => {
+      try {
+        const reply = await aiCall([
+          { role: "system", content: `你是数学图形表达式修复专家。用户使用 [graph] 标签嵌入函数图像，但表达式渲染失败。
+
+表达式格式（必须严格遵循）：
+  [graph]前缀:Python表达式|xmin|xmax|ymin|ymax|标题[/graph]
+  前缀: y=显函数 / eq:隐式方程 / multi:子式1;子式2(分号分隔) / pw:分段 / 3d:三维
+  Python 要求: 指数用 ** 而非 ^，乘号不能省略（2*x 而非 2x），括号乘积要写 (x+1)*(x-2) 而非 (x+1)(x-2)
+
+常见错误及修正：
+  (x+2)(x-4) → (x+2)*(x-4)
+  2x → 2*x
+  x^2 → x**2
+  multi: 用逗号分隔 → 改为分号` },
+          { role: "user", content: `以下表达式渲染失败，请直接输出修正后的一行表达式（不要任何解释、不要 markdown 代码块）：
+
+失败表达式：${failedExpr}
+错误信息：${errorMsg}
+
+修正后的表达式：` },
+        ], 2000);
+        let fixed = (reply || "").trim();
+        // 清理各种包装
+        fixed = fixed.replace(/```[\s\S]*?```/g, "").replace(/^\[graph\]|\[\/graph\]$/gi, "").trim();
+        // 只取第一行
+        fixed = fixed.split("\n")[0].trim();
+        console.log("[GraphFix] AI returned:", fixed?.slice(0, 200));
+        return fixed || null;
+      } catch (e) {
+        console.warn("[GraphFix] AI call failed:", e.message);
+        return null;
+      }
+    };
+    return () => { delete window.__zhixueban_graphFix; };
   }, []);
 
   // 分节 loading：不用全局锁，当前小节加载中才算
@@ -213,7 +264,7 @@ function LearnContent() {
     setCurrentLoading(true);
     try {
       const raw = await aiCall([
-        { role: "system", content: quizPrompt(course.courseTitle, cache.lecture, hasGraph) },
+        { role: "system", content: quizPrompt(course.courseTitle, cache.lecture, hasGraph, getDifficulty()) },
         { role: "user", content: "请根据上面的授课内容生成小测验。" },
       ], 20000);
 
@@ -380,7 +431,7 @@ function LearnContent() {
     try {
       const weakPoints = cache.review?.weakPoints?.join("、") || "综合";
       const raw = await aiCall([
-        { role: "system", content: practicePrompt(course.courseTitle, cache.lecture, weakPoints, hasGraph) },
+        { role: "system", content: practicePrompt(course.courseTitle, cache.lecture, weakPoints, hasGraph, getDifficulty()) },
         { role: "user", content: "请根据薄弱点生成针对性练习。" },
       ], 20000);
 
@@ -618,7 +669,7 @@ function LearnContent() {
     if (stage === STAGE.READING && cache.lecture && (!cache.quiz || cache.quiz.questions?.[0]?.type === "error")) {
       try {
         const raw = await aiCall([
-          { role: "system", content: quizPrompt(course.courseTitle, cache.lecture, hasGraph) },
+          { role: "system", content: quizPrompt(course.courseTitle, cache.lecture, hasGraph, getDifficulty()) },
           { role: "user", content: "请根据上面的授课内容生成小测验。" },
         ], 20000);
         let quizData;
@@ -638,7 +689,7 @@ function LearnContent() {
       try {
         const weakPoints = cache.review?.weakPoints?.join("、") || "综合";
         const raw = await aiCall([
-          { role: "system", content: practicePrompt(course.courseTitle, cache.lecture, weakPoints, hasGraph) },
+          { role: "system", content: practicePrompt(course.courseTitle, cache.lecture, weakPoints, hasGraph, getDifficulty()) },
           { role: "user", content: "请根据薄弱点生成针对性练习。" },
         ], 20000);
         let practiceData;
@@ -690,7 +741,7 @@ function LearnContent() {
         try {
           if (cached?.quiz?.questions?.length > 0) continue;
           const raw = await aiCall([
-            { role: "system", content: quizPrompt(course.courseTitle, lecture || cached?.lecture, hasGraph) },
+            { role: "system", content: quizPrompt(course.courseTitle, lecture || cached?.lecture, hasGraph, getDifficulty()) },
             { role: "user", content: "请根据上面的授课内容生成小测验。" },
           ], 20000);
           let quizData;
@@ -1120,7 +1171,7 @@ function QuizPanel({ title = "✍️ 小测验", questions, onAnswerChange, onSu
         {questions.map((q, i) => (
           <div key={i} className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-5">
             <div className="font-medium text-black dark:text-zinc-100 mb-3">
-              {i + 1}. <MarkdownRenderer content={q.question} />
+              {i + 1}. <Stars stars={q.stars} /><MarkdownRenderer content={q.question} />
             </div>
             {q.options?.length > 0 ? (
               <div className="space-y-2">
@@ -1363,7 +1414,7 @@ function ReviewPanel({ title = "🔍 批改结果", questions, review, onRetry, 
               <div className="flex items-start gap-2 mb-2">
                 <span className="text-lg">{q.correct ? "✅" : "❌"}</span>
                 <div className="flex-1">
-                  <div className="text-sm font-medium text-black dark:text-zinc-100">{i + 1}. <MarkdownRenderer content={q.question} /></div>
+                  <div className="text-sm font-medium text-black dark:text-zinc-100">{i + 1}. <Stars stars={q.stars} /><MarkdownRenderer content={q.question} /></div>
                   <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
                     <span className="text-xs text-zinc-400">你的答案：{q.userAnswer || "（未作答）"}</span>
                     {q.options?.length > 0 && (
@@ -1581,7 +1632,7 @@ function QuizReviewCombined({ title, questions, review, onSubmit, onPractice, on
                   <span className="text-lg">{icon}</span>
                   <div className="flex-1">
                     <div className="text-sm font-medium text-black dark:text-zinc-100">
-                      {i + 1}. <MarkdownRenderer content={q.question} />
+                      {i + 1}. <Stars stars={q.stars} /><MarkdownRenderer content={q.question} />
                       {isPartial && q.partialScore != null && (
                         <span className="ml-2 text-xs text-amber-600 dark:text-amber-400 font-normal">
                           （得 {Math.round(q.partialScore * 100)}% 分）

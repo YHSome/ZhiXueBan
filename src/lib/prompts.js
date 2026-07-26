@@ -27,13 +27,15 @@ const GRAPH_BLOCK = `
   🚫 自变量必须用 x！不管题目原来是 t/θ/n 什么字母，表达式中统一写成 x
   🚫 LaTeX 禁止用 \\begin{cases}（会被转义破坏），分段函数用 [graph]pw: 画图 + 文字描述
   🚫 LaTeX 禁止用 \\\\[2pt] 等间距命令，换行用 \\\\
-  💡 可读性：ymin/ymax 根据函数值域合理设置（如 y=100x 时 y 范围写 -100|100 而非 -5|5），xy 差距过大时系统会自动拉伸`;
+  💡 可读性：ymin/ymax 根据函数值域合理设置（如 y=100x 时 y 范围写 -100|100 而非 -5|5），xy 差距过大时系统会自动拉伸
+  💡 图例智能决策：题目/讲义文字已完整描述方程时，标题写"示意图"即可；仅当图补充了文字未提及的信息时才写详细标题`;
 
 const QUIZ_GRAPH_BLOCK = `
 配图模板（严格遵守）：
   [graph]前缀:表达式|xmin|xmax|ymin|ymax|标题[/graph]
   前缀: y=显函数 / eq:隐式方程 / multi:多函数 / pw:分段 / 3d:三维(7段参数)
-  🚫 严禁 y: -4<=x<=5 ^ 2x 等格式。自变量必须用 x`;
+  🚫 严禁 y: -4<=x<=5 ^ 2x 等格式。自变量必须用 x
+  💡 题目文字已描述方程时，标题写"示意图"；图补充新信息时才写详细标题`;
 
 // ══════════════════════════════════════════════
 export function lecturePrompt(courseTitle, chapterTitle, sectionTitle, hasGraph = false) {
@@ -51,9 +53,16 @@ export function lecturePrompt(courseTitle, chapterTitle, sectionTitle, hasGraph 
 - Markdown 格式${hasGraph ? GRAPH_BLOCK : ""}`;
 }
 
-export function quizPrompt(courseTitle, lecture, hasGraph = false) {
+export function quizPrompt(courseTitle, lecture, hasGraph = false, difficulty = "normal") {
+  const diffLabel = { easy: "简单", normal: "基础", hard: "进阶", challenge: "挑战" }[difficulty] || "基础";
+  const diffGuide = {
+    easy: "偏重基础概念和直接应用，对标课本例题。每题 1-3 星",
+    normal: "兼顾理解和应用，包含一定综合性。难度 2 星到 4 星均匀分布",
+    hard: "偏重综合分析和多步推理。难度 3 星到 6 星，至少一道 5 星以上",
+    challenge: "竞赛级别：深度推理、多知识点融合、非常规思路。难度 4 星到 6 星，至少一道 6 星，允许超出课本范围的延伸思考",
+  }[difficulty] || "";
   const graphReq = hasGraph
-    ? `- 🔥 必须配图：涉及函数、方程、几何、曲线关系的题目，必须在 question 文字中插入 [graph]...[/graph]。越复杂的题越要配图（如求交点、判断大小关系、分析函数性质等），简单概念题可以纯文字
+    ? `- 🔥 必须配图：涉及函数、方程、几何、曲线关系的题目，必须在 question 文字中插入 [graph]...[/graph]。越复杂的题越要配图，简单概念题可以纯文字
 - 配图直接嵌入题目文字中，让学生能看图作答。不允许出现"如图所示"但没图的情况
 ${QUIZ_GRAPH_BLOCK}`
     : `- ⛔ 纯文字题目：不得引用图片、图形、图表。不得出现"如图所示"、"下图"、"看图"等表述`;
@@ -61,6 +70,8 @@ ${QUIZ_GRAPH_BLOCK}`
   return `你是智学伴的出题老师。根据以下授课内容出 3-5 道小测验题。
 
 课程：${courseTitle}
+难度体系：简单 → 基础 → 进阶 → 挑战（共四档），当前为「${diffLabel}」
+${diffGuide}
 授课内容：${lecture.slice(0, 2000)}
 
 ⚠️ 出题原则：
@@ -69,12 +80,14 @@ ${graphReq}
 - 测试理解而非挖坑：考学生对知识的理解
 - 题型多样（单选、填空、简答），难度由浅入深
 - 每道题附上正确答案
+- 每道题标注难度星级 stars（整数 1-6），1=最简单 6=最难
 
 返回 JSON（不要 markdown 代码块）：
-{"questions":[{"type":"choice|fill|short","question":"...","options":["A. x","B. y"],"answer":"..."}]}`;
+{"questions":[{"type":"choice|fill|short","stars":3,"question":"...","options":["A. x","B. y"],"answer":"..."}]}`;
 }
 
-export function practicePrompt(courseTitle, lecture, weakPoints, hasGraph = false) {
+export function practicePrompt(courseTitle, lecture, weakPoints, hasGraph = false, difficulty = "normal") {
+  const diffLabel = { easy: "简单", normal: "基础", hard: "进阶", challenge: "挑战" }[difficulty] || "基础";
   const graphReq = hasGraph
     ? `- 🔥 必须配图：涉及函数图像、方程曲线、几何关系、多函数对比的题目，必须在 question 中插入 [graph]...[/graph]。越难越要配图！简单纯概念题可以纯文字
 ${QUIZ_GRAPH_BLOCK}`
@@ -83,14 +96,17 @@ ${QUIZ_GRAPH_BLOCK}`
   return `你是智学伴的练习老师。根据以下内容和学生薄弱点，出 3-4 道针对性练习。
 
 课程：${courseTitle}
+当前难度：${diffLabel}
 薄弱点：${weakPoints}
 授课内容：${lecture.slice(0, 1500)}
 
 出题原则：
 ${graphReq}
+- 针对薄弱点出题但不要重复原题，难度匹配当前设置
+- 每道题标注难度星级 stars（整数 1-6），1=最简单 6=最难
 - options 仅选择题需要，填空/简答不要带 options 字段
 
-返回 JSON：{"questions":[{"type":"choice","question":"...","options":["A","B"],"answer":"B"},{"type":"fill","question":"...","answer":"..."}]}`;
+返回 JSON：{"questions":[{"type":"choice","stars":3,"question":"...","options":["A","B"],"answer":"B"},{"type":"fill","stars":2,"question":"...","answer":"..."}]}`;
 }
 
 export function gradingPrompt(lecture) {
