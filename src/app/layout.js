@@ -1,5 +1,5 @@
 import { Geist, Geist_Mono } from "next/font/google";
-import MistakeBadge from "@/components/MistakeBadge";
+import NavBar from "@/components/NavBar";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -29,30 +29,7 @@ export default function RootLayout({ children }) {
         <script dangerouslySetInnerHTML={{ __html: `(function(){var s=localStorage.getItem("zhixueban-font-size")||"standard";document.documentElement.className+=" font-"+s;})()` }} />
       </head>
       <body className="min-h-full flex flex-col bg-zinc-50 dark:bg-black">
-        {/* 顶部导航栏 */}
-        <header className="bg-white dark:bg-black border-b border-zinc-200 dark:border-zinc-800">
-          <div className="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
-            <a href="/" className="text-xl font-bold text-blue-600 flex items-center gap-2 hover:opacity-80 transition-opacity no-underline"><img src="/logo.png" alt="智学伴" className="h-7 w-7" />智学伴</a>
-            <nav className="flex items-center gap-1">
-              <a href="/" className="px-3 py-1.5 rounded-md text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
-                首页
-              </a>
-              <a href="/learn" className="px-3 py-1.5 rounded-md text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
-                学习
-              </a>
-              <a href="/mistakes" className="relative px-3 py-1.5 rounded-md text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
-                错题集
-                <MistakeBadge />
-              </a>
-              <a href="/report" className="px-3 py-1.5 rounded-md text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
-                学习报告
-              </a>
-              <a href="/setup" className="ml-2 px-3 py-1.5 rounded-md text-sm bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 transition-colors">
-                ⚙️
-              </a>
-            </nav>
-          </div>
-        </header>
+        <NavBar />
 
         {/* 页面内容 */}
         <main className="max-w-6xl mx-auto px-4 py-8 w-full flex-1">
