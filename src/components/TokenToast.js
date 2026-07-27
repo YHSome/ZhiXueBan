@@ -83,6 +83,7 @@ export async function streamAiCall({ apiKey, baseUrl, model, messages, maxTokens
       } catch {}
     }
     if (!gotUsage) updateTokenToast({ phase: "done", bytes: totalBytes });
+    console.log("[SSE] bytes:", totalBytes, "content:", fullContent.length, "chars | tail:", fullContent.slice(-200));
   } catch (e) {
     if (e.name === "AbortError") {
       aborted = true;
