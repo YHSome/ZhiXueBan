@@ -1565,16 +1565,12 @@ function TeachBackPanel({ teachBack, onSend, loading, onNext }) {
         )}
       </div>
 
-      {/* 输入 / 下一题 */}
+      {/* 通过后：点击完成才进入下一题 */}
       {teachBack.currentQuestionApproved && onNext ? (
-        <div className="flex gap-3">
-          <input id="teachback-input" type="text" placeholder="这道题已通过 ✅"
-            disabled className="flex-1 px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-black dark:text-zinc-100 outline-none opacity-50" />
-          <button onClick={onNext}
-            className="px-6 py-3 rounded-lg bg-green-500 text-white hover:bg-green-600 transition-colors">
-            下一题 →
-          </button>
-        </div>
+        <button onClick={onNext}
+          className="w-full py-3 rounded-lg bg-green-500 text-white font-medium hover:bg-green-600 transition-colors">
+          ✅ 本题已通过，点击完成
+        </button>
       ) : (
         <div className="flex gap-3">
           <input id="teachback-input" type="text" placeholder="向 AI 讲解这道题的解题思路..."
