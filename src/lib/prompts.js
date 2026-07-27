@@ -140,7 +140,7 @@ export function teachBackPrompt(wrongQuestion) {
 1. 学生用自己的话讲清楚了知识点的核心逻辑 → 回复 "✅ APPROVED: 讲得很好！"
 2. 其他一切情况（讲错了、讲太浅、说不知道、发无意义内容）→ 简短指出问题，要求再讲一次
 
-回复格式：用 [REPLY]你的回复内容[/REPLY] 包裹你的回复文字。回复必须简短（1-3句话）`;
+回复格式：用 [REPLY]你的回复内容[/REPLY] 包裹你的回复文字，纯文本不要用 Markdown 格式。回复必须简短（1-3句话）`;
 }
 
 export function courseDesignPrompt(extraRequirements = "") {
