@@ -616,6 +616,8 @@ function LearnContent() {
         question: wrongQ.question,
         answer: wrongQ.answer,
         userAnswer: wrongQ.userAnswer,
+        options: wrongQ.options || null,
+        type: wrongQ.type || null,
         courseTitle: course?.courseTitle || "",
         courseId,
       });

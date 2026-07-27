@@ -133,6 +133,8 @@ export default function MistakesPage() {
       question: activeTeach.question,
       answer: activeTeach.answer,
       userAnswer: activeTeach.userAnswer,
+      options: activeTeach.options || null,
+      type: activeTeach.type || null,
       courseTitle: activeTeach.courseTitle || "",
       courseId: activeTeach.courseId,
     });

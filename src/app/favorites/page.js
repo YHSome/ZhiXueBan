@@ -49,9 +49,22 @@ export default function FavoritesPage() {
                 <div className="font-medium text-black dark:text-zinc-100 mb-2">
                   <MarkdownRenderer content={item.question} />
                 </div>
+                {item.options?.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mb-2">
+                    {item.options.map((opt, oi) => (
+                      <span key={oi} className={`text-xs px-2 py-0.5 rounded ${
+                        opt === item.answer ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400"
+                        : opt === item.userAnswer ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400"
+                        : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500"}`}>{opt}</span>
+                    ))}
+                  </div>
+                )}
                 <div className="text-xs text-zinc-500 space-y-1">
-                  <div>✅ 正确答案：<MarkdownRenderer content={item.answer} /></div>
-                  {item.userAnswer && (
+                  {!item.options?.length && <div>✅ 正确答案：<MarkdownRenderer content={item.answer} /></div>}
+                  {item.userAnswer && item.options?.length > 0 && (
+                    <div>❌ 你的答案：<span className="text-red-500">{item.userAnswer}</span></div>
+                  )}
+                  {item.userAnswer && !item.options?.length && (
                     <div>❌ 你的答案：<span className="text-red-500">{item.userAnswer}</span></div>
                   )}
                 </div>
