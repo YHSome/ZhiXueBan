@@ -63,7 +63,9 @@ export async function streamAiCall({ apiKey, baseUrl, model, messages, maxTokens
         if (jsonStr === "[DONE]") continue;
         try {
           const chunk = JSON.parse(jsonStr);
-          if (chunk.choices?.[0]?.delta?.content) fullContent += chunk.choices[0].delta.content;
+          const d = chunk.choices?.[0]?.delta;
+          if (d?.content) fullContent += d.content;
+          else if (d && !chunk.usage && !gotUsage) console.log("[SSE delta]", JSON.stringify(d).slice(0,200));
           if (chunk.usage) { updateTokenToast({ phase: "done", bytes: totalBytes, usage: chunk.usage }); gotUsage = true; }
         } catch {}
       }
@@ -84,6 +86,7 @@ export async function streamAiCall({ apiKey, baseUrl, model, messages, maxTokens
       } catch {}
     }
     if (!gotUsage) updateTokenToast({ phase: "done", bytes: totalBytes });
+    if (!fullContent) console.warn("[SSE] empty content, bytes:", totalBytes, "gotUsage:", gotUsage);
   } catch (e) {
     if (e.name === "AbortError") {
       aborted = true;
