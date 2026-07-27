@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 function isDevMode() {
   try { return localStorage.getItem("zhixueban-dev-mode") === "1"; } catch { return false; }
@@ -11,12 +11,25 @@ export default function GeoGebraView({ commands = "", width = "100%", height = 3
   const [error, setError] = useState(null);
   const [fixing, setFixing] = useState(false);
   const [fixedExpr, setFixedExpr] = useState(null);
+  const [inView, setInView] = useState(false);
+  const ref = useRef(null);
   const currentExpr = fixedExpr || commands;
   const devMode = typeof window !== "undefined" && isDevMode();
 
+  // 懒加载：只在元素接近视口时才请求图片
   useEffect(() => {
-    setFixedExpr(null); // commands 变了就清除修复结果
-    if (!currentExpr?.trim()) return;
+    const el = ref.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) { setInView(true); obs.disconnect(); }
+    }, { rootMargin: "200px" });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
+  useEffect(() => {
+    setFixedExpr(null);
+    if (!currentExpr?.trim() || !inView) return;
     let cancelled = false;
 
     (async () => {
@@ -35,7 +48,7 @@ export default function GeoGebraView({ commands = "", width = "100%", height = 3
         const blob = await res.blob();
         if (!cancelled) {
           setImgUrl(URL.createObjectURL(blob));
-          setFixedExpr(null); // 成功后清除修复状态
+          setFixedExpr(null);
         }
       } catch (e) {
         console.warn("Graph render failed for:", currentExpr?.slice(0, 100));
@@ -44,7 +57,7 @@ export default function GeoGebraView({ commands = "", width = "100%", height = 3
     })();
 
     return () => { cancelled = true; };
-  }, [currentExpr, height]);
+  }, [currentExpr, height, inView]);
 
   if (!commands?.trim()) return null;
 
@@ -68,7 +81,7 @@ export default function GeoGebraView({ commands = "", width = "100%", height = 3
   if (error) {
     const hasFix = typeof window !== "undefined" && window.__zhixueban_graphFix;
     return (
-      <div className="text-xs text-zinc-400 text-center py-4 border border-red-200 dark:border-red-800 rounded-lg bg-red-50/30 dark:bg-red-900/10 my-3">
+      <div ref={ref} className="text-xs text-zinc-400 text-center py-4 border border-red-200 dark:border-red-800 rounded-lg bg-red-50/30 dark:bg-red-900/10 my-3">
         <div className="text-red-500 font-medium mb-1">图形渲染失败</div>
         <div className="text-red-400 mb-1">{error}</div>
         {devMode && (
@@ -87,10 +100,10 @@ export default function GeoGebraView({ commands = "", width = "100%", height = 3
     );
   }
 
-  if (!imgUrl) return <div className="h-4 bg-zinc-100 dark:bg-zinc-800 rounded animate-pulse" style={{ height }} />;
+  if (!imgUrl) return <div ref={ref} className="h-4 bg-zinc-100 dark:bg-zinc-800 rounded animate-pulse" style={{ height }} />;
 
   return (
-    <div className="my-3">
+    <div ref={ref} className="my-3">
       <img src={imgUrl} alt="图形" className="rounded-lg border border-zinc-200 dark:border-zinc-700 max-w-full" />
       {devMode && (
         <details className="mt-1">
