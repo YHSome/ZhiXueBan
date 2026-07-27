@@ -29,6 +29,7 @@ export async function streamAiCall({ apiKey, baseUrl, model, messages, maxTokens
   updateTokenToast({ phase: "loading", bytes: 0 });
 
   let fullContent = "";
+  let reasoningBuf = "";
   let totalBytes = 0;
   let buffer = "";
   let gotUsage = false;
@@ -63,7 +64,9 @@ export async function streamAiCall({ apiKey, baseUrl, model, messages, maxTokens
         if (jsonStr === "[DONE]") continue;
         try {
           const chunk = JSON.parse(jsonStr);
-          if (chunk.choices?.[0]?.delta?.content) fullContent += chunk.choices[0].delta.content;
+          const d = chunk.choices?.[0]?.delta;
+          if (d?.content) fullContent += d.content;
+          if (d?.reasoning_content) reasoningBuf += d.reasoning_content;
           if (chunk.usage) { updateTokenToast({ phase: "done", bytes: totalBytes, usage: chunk.usage }); gotUsage = true; }
         } catch {}
       }
@@ -83,7 +86,7 @@ export async function streamAiCall({ apiKey, baseUrl, model, messages, maxTokens
       } catch {}
     }
     if (!gotUsage) updateTokenToast({ phase: "done", bytes: totalBytes });
-    console.log("[SSE] bytes:", totalBytes, "content length:", fullContent.length, "content tail:", fullContent.slice(-200));
+    if (!fullContent && reasoningBuf) fullContent = reasoningBuf;
   } catch (e) {
     if (e.name === "AbortError") {
       aborted = true;
