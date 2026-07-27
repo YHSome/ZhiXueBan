@@ -63,7 +63,8 @@ export async function streamAiCall({ apiKey, baseUrl, model, messages, maxTokens
         if (jsonStr === "[DONE]") continue;
         try {
           const chunk = JSON.parse(jsonStr);
-          if (chunk.choices?.[0]?.delta?.content) fullContent += chunk.choices[0].delta.content;
+          if (chunk.choices?.[0]?.delta?.content) { fullContent += chunk.choices[0].delta.content; }
+          else if (!chunk.usage && !gotUsage) { console.log("[SSE chunk]", JSON.stringify(chunk).slice(0,200)); }
           if (chunk.usage) { updateTokenToast({ phase: "done", bytes: totalBytes, usage: chunk.usage }); gotUsage = true; }
         } catch {}
       }
@@ -78,7 +79,8 @@ export async function streamAiCall({ apiKey, baseUrl, model, messages, maxTokens
       if (jsonStr === "[DONE]") continue;
       try {
         const chunk = JSON.parse(jsonStr);
-        if (chunk.choices?.[0]?.delta?.content) fullContent += chunk.choices[0].delta.content;
+        if (chunk.choices?.[0]?.delta?.content) { fullContent += chunk.choices[0].delta.content; }
+        else if (!chunk.usage && !gotUsage) { console.log("[SSE flush]", JSON.stringify(chunk).slice(0,200)); }
         if (chunk.usage) { updateTokenToast({ phase: "done", bytes: totalBytes, usage: chunk.usage }); gotUsage = true; }
       } catch {}
     }
