@@ -91,7 +91,7 @@ export async function streamAiCall({ apiKey, baseUrl, model, messages, maxTokens
       const m = reasoningBuf.match(/\[REPLY\]([\s\S]*?)\[\/REPLY\]/);
       fullContent = m ? m[1].trim() : reasoningBuf.slice(-600).trim();
     }
-    console.log("[SSE] bytes:", totalBytes, "content:", fullContent.length, "chars | tail:", fullContent.slice(-200));
+    if (!fullContent && !reasoningBuf) console.warn("[SSE] completely empty response");
   } catch (e) {
     if (e.name === "AbortError") {
       aborted = true;

@@ -581,13 +581,11 @@ function LearnContent() {
         ...updated,
       ], 80000);
 
-      console.log("[TeachBack] length:", answer?.length, "|", answer?.slice(-300));
       const display = answer || "(AI 返回为空，请重试)";
       const approved = answer.includes("✅ APPROVED");
       const newMessages = [...updated, { role: "assistant", content: display }];
 
       if (approved) {
-        console.log("[TeachBack] APPROVED, setting showCollect=true, wrongIndex:", tb.currentWrongIndex, "total:", tb.wrongQuestions.length);
         updateCache(key, {
           teachBack: { ...tb, chatMessages: newMessages, currentQuestionApproved: true, showCollect: true },
         });
@@ -628,20 +626,17 @@ function LearnContent() {
   function skipCollect() {
     const key = activeKey();
     const cache = activeCache();
-    console.log("[TeachBack] skipCollect called");
     updateCache(key, { teachBack: { ...cache.teachBack, showCollect: false } });
   }
 
   // 收藏并完成
   function collectAndFinish() {
-    console.log("[TeachBack] collectAndFinish called");
     collectCurrentQuestion();
     skipCollect();
   }
 
   // 手动切换到下一道错题
   function nextTeachQuestion() {
-    console.log("[TeachBack] nextTeachQuestion called");
     const key = activeKey();
     const cache = activeCache();
     const tb = cache?.teachBack;

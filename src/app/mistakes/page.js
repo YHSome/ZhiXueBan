@@ -6,6 +6,7 @@ import { getAllCourses } from "@/lib/courses";
 import { getApiConfig } from "@/lib/api-key";
 import TokenToast, { streamAiCall } from "@/components/TokenToast";
 import MarkdownRenderer from "@/components/MarkdownRenderer";
+import { addFavorite } from "@/lib/favorites";
 
 function loadResolved() {
   try { return new Set(JSON.parse(localStorage.getItem("zhixueban-resolved") || "[]")); }
@@ -80,6 +81,8 @@ export default function MistakesPage() {
     setTeachInput("");
   }
 
+  const [showCollect, setShowCollect] = useState(false);
+
   async function sendTeachMessage() {
     if (!teachInput.trim() || teachLoading || !activeTeach) return;
     const text = teachInput.trim();
@@ -93,17 +96,20 @@ export default function MistakesPage() {
       const config = getApiConfig();
       const reply = await streamAiCall({
         apiKey: config.apiKey, baseUrl: config.baseUrl, model: config.model,
-        maxTokens: 500,
+        maxTokens: 80000,
         messages: [
           {
             role: "system",
-            content: `你是错题消除导师。学生需要向你讲解这道错题来证明他掌握了。
+            content: `你是智学伴的"以教促学"导师。学生需要向你讲解一道错题来证明掌握了。
 
 原题：${activeTeach.question}
 正确答案：${activeTeach.answer}
-学生之前的错误答案：${activeTeach.userAnswer || "（未作答）"}
 
-规则：差不多懂就行，不抠字眼。最多追问一次。学生讲清楚了就回复 "✅ APPROVED"。`,
+规则（二选一，简单直接）：
+1. 学生用自己的话讲清楚了知识点的核心逻辑 → 回复 "✅ APPROVED: 讲得很好！"
+2. 其他一切情况 → 简短指出问题，要求再讲一次
+
+回复格式：用 [REPLY]你的回复内容[/REPLY] 包裹你的回复文字，纯文本不要用 Markdown 格式。回复必须简短（1-3句话）`,
           },
           ...updated,
         ],
@@ -113,17 +119,33 @@ export default function MistakesPage() {
       setTeachMessages(newMessages);
 
       if (approved) {
-        const next = new Set(resolved);
-        next.add(qid(activeTeach));
-        setResolved(next);
-        saveResolved(next);
-        setTimeout(() => setActiveTeach(null), 1500);
+        setShowCollect(true);
       }
     } catch (e) {
       setTeachMessages([...updated, { role: "assistant", content: `❌ ${e.message}` }]);
     } finally {
       setTeachLoading(false);
     }
+  }
+
+  function handleCollect() {
+    addFavorite({
+      question: activeTeach.question,
+      answer: activeTeach.answer,
+      userAnswer: activeTeach.userAnswer,
+      courseTitle: activeTeach.courseTitle || "",
+      courseId: activeTeach.courseId,
+    });
+    finishQuestion();
+  }
+
+  function finishQuestion() {
+    const next = new Set(resolved);
+    next.add(qid(activeTeach));
+    setResolved(next);
+    saveResolved(next);
+    setShowCollect(false);
+    setActiveTeach(null);
   }
 
   if (loading) {
@@ -231,25 +253,41 @@ export default function MistakesPage() {
                         {teachLoading && <div className="text-xs text-zinc-400 animate-pulse">AI 思考中...</div>}
                         <div ref={chatEndRef} />
                       </div>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={teachInput}
-                          onChange={(e) => setTeachInput(e.target.value)}
-                          onKeyDown={(e) => e.key === "Enter" && sendTeachMessage()}
-                          placeholder="讲解这道题的正确思路..."
-                          disabled={teachLoading}
-                          className="flex-1 px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs text-black dark:text-zinc-100 outline-none disabled:opacity-50"
-                        />
-                        <button onClick={sendTeachMessage} disabled={teachLoading || !teachInput.trim()}
-                          className="px-3 py-2 rounded-lg bg-amber-500 text-white text-xs hover:bg-amber-600 disabled:opacity-50">
-                          讲解
-                        </button>
-                        <button onClick={() => setActiveTeach(null)}
-                          className="px-3 py-2 rounded-lg border border-zinc-300 text-xs text-zinc-500 hover:bg-zinc-50">
-                          取消
-                        </button>
-                      </div>
+                      {showCollect ? (
+                        <div className="space-y-2">
+                          <p className="text-xs text-zinc-500 text-center">需要收藏这一题吗？</p>
+                          <div className="flex gap-2">
+                            <button onClick={handleCollect}
+                              className="flex-1 py-2 rounded-lg bg-amber-500 text-white text-xs font-medium hover:bg-amber-600">
+                              ⭐ 收藏
+                            </button>
+                            <button onClick={finishQuestion}
+                              className="flex-1 py-2 rounded-lg border border-zinc-300 text-xs text-zinc-600 hover:bg-zinc-50">
+                              不收藏
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={teachInput}
+                            onChange={(e) => setTeachInput(e.target.value)}
+                            onKeyDown={(e) => e.key === "Enter" && sendTeachMessage()}
+                            placeholder="讲解这道题的正确思路..."
+                            disabled={teachLoading}
+                            className="flex-1 px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs text-black dark:text-zinc-100 outline-none disabled:opacity-50"
+                          />
+                          <button onClick={sendTeachMessage} disabled={teachLoading || !teachInput.trim()}
+                            className="px-3 py-2 rounded-lg bg-amber-500 text-white text-xs hover:bg-amber-600 disabled:opacity-50">
+                            讲解
+                          </button>
+                          <button onClick={() => setActiveTeach(null)}
+                            className="px-3 py-2 rounded-lg border border-zinc-300 text-xs text-zinc-500 hover:bg-zinc-50">
+                            取消
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
