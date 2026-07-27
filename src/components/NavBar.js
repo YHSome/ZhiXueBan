@@ -12,6 +12,7 @@ export default function NavBar() {
       <a href="/learn" onClick={() => setOpen(false)} className="block px-3 py-1.5 rounded-md text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">学习</a>
       <a href="/mistakes" onClick={() => setOpen(false)} className="relative block px-3 py-1.5 rounded-md text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">错题集<MistakeBadge /></a>
       <a href="/report" onClick={() => setOpen(false)} className="block px-3 py-1.5 rounded-md text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">学习报告</a>
+      <a href="/favorites" onClick={() => setOpen(false)} className="block px-3 py-1.5 rounded-md text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">⭐ 收藏夹</a>
       <a href="/setup" onClick={() => setOpen(false)} className="block px-3 py-1.5 rounded-md text-sm bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 transition-colors">⚙️ 设置</a>
     </>
   );

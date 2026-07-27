@@ -9,6 +9,7 @@ import MarkdownRenderer from "@/components/MarkdownRenderer";
 import TokenToast, { streamAiCall, updateTokenToast } from "@/components/TokenToast";
 import { lecturePrompt, quizPrompt, practicePrompt, gradingPrompt, teachBackPrompt } from "@/lib/prompts";
 import { checkGraphSupport, getCachedGraphSupport } from "@/lib/graph-support";
+import { addFavorite } from "@/lib/favorites";
 import LatexToolbar from "@/components/LatexToolbar";
 import GeoGebraView from "@/components/GeoGebraView";
 
@@ -586,9 +587,8 @@ function LearnContent() {
       const newMessages = [...updated, { role: "assistant", content: display }];
 
       if (approved) {
-        // 标记当前题已通过，但不自动跳转（等用户点"下一题"）
         updateCache(key, {
-          teachBack: { ...tb, chatMessages: newMessages, currentQuestionApproved: true },
+          teachBack: { ...tb, chatMessages: newMessages, currentQuestionApproved: true, showCollect: true },
         });
       } else {
         updateCache(key, {
@@ -602,6 +602,37 @@ function LearnContent() {
     } finally {
       setCurrentLoading(false);
     }
+  }
+
+  // 收藏当前题
+  function collectCurrentQuestion() {
+    const key = activeKey();
+    const cache = activeCache();
+    const tb = cache?.teachBack;
+    if (!tb) return;
+    const wrongQ = tb.wrongQuestions[tb.currentWrongIndex];
+    if (wrongQ) {
+      addFavorite({
+        question: wrongQ.question,
+        answer: wrongQ.answer,
+        userAnswer: wrongQ.userAnswer,
+        courseTitle: course?.courseTitle || "",
+        courseId,
+      });
+    }
+  }
+
+  // 跳过收藏（不收藏）
+  function skipCollect() {
+    const key = activeKey();
+    const cache = activeCache();
+    updateCache(key, { teachBack: { ...cache.teachBack, showCollect: false } });
+  }
+
+  // 收藏并完成
+  function collectAndFinish() {
+    collectCurrentQuestion();
+    skipCollect();
   }
 
   // 手动切换到下一道错题
@@ -1025,6 +1056,8 @@ function LearnContent() {
           teachBack={cache.teachBack || {}}
           onSend={sendTeachBackMessage}
           onNext={nextTeachQuestion}
+          onCollect={collectAndFinish}
+          onSkipCollect={skipCollect}
           loading={isLoading()}
         />
       )}
@@ -1486,7 +1519,7 @@ function ReviewPanel({ title = "🔍 批改结果", questions, review, onRetry, 
 }
 
 // 以教促学面板
-function TeachBackPanel({ teachBack, onSend, loading, onNext }) {
+function TeachBackPanel({ teachBack, onSend, loading, onNext, onCollect, onSkipCollect }) {
   const currentIdx = teachBack.currentWrongIndex || 0;
   const total = teachBack.wrongQuestions?.length || 0;
   const wrongQ = teachBack.wrongQuestions?.[currentIdx];
@@ -1566,11 +1599,25 @@ function TeachBackPanel({ teachBack, onSend, loading, onNext }) {
         )}
       </div>
 
-      {/* 通过后：点击完成才进入下一题 */}
-      {teachBack.currentQuestionApproved && onNext ? (
+      {/* 通过后：先问是否收藏，再显示完成 */}
+      {teachBack.showCollect && onCollect && onSkipCollect ? (
+        <div className="space-y-2">
+          <p className="text-sm text-zinc-500 text-center">需要收藏这一题吗？</p>
+          <div className="flex gap-3">
+            <button onClick={onCollect}
+              className="flex-1 py-3 rounded-lg bg-amber-500 text-white font-medium hover:bg-amber-600 transition-colors">
+              ⭐ 收藏
+            </button>
+            <button onClick={onSkipCollect}
+              className="flex-1 py-3 rounded-lg border border-zinc-300 text-zinc-600 hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-400 dark:hover:bg-zinc-800 transition-colors">
+              不收藏
+            </button>
+          </div>
+        </div>
+      ) : teachBack.currentQuestionApproved && onNext ? (
         <button onClick={onNext}
           className="w-full py-3 rounded-lg bg-green-500 text-white font-medium hover:bg-green-600 transition-colors">
-          ✅ 本题已通过，点击完成
+          ✅ 完成，下一题
         </button>
       ) : (
         <div className="flex gap-3">
