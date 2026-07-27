@@ -580,6 +580,7 @@ function LearnContent() {
         ...updated,
       ]);
 
+      console.log("[TeachBack] AI raw reply:", JSON.stringify(answer?.slice(0, 300)));
       const display = answer || "(AI 返回为空，请重试)";
       const approved = answer.includes("✅ APPROVED");
       const newMessages = [...updated, { role: "assistant", content: display }];

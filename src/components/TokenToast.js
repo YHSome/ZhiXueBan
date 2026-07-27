@@ -83,6 +83,7 @@ export async function streamAiCall({ apiKey, baseUrl, model, messages, maxTokens
       } catch {}
     }
     if (!gotUsage) updateTokenToast({ phase: "done", bytes: totalBytes });
+    if (!fullContent) console.warn("[SSE] streamAiCall returned empty content, bytes:", totalBytes, "gotUsage:", gotUsage);
   } catch (e) {
     if (e.name === "AbortError") {
       aborted = true;
