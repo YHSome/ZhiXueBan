@@ -141,8 +141,9 @@ export function teachBackPrompt(wrongQuestion) {
 - 学生讲得足够详细、思路清晰 → 回复 "✅ APPROVED: 讲得很好！"
 - 学生方向对但不够清晰 → 追问一个具体问题引导
 - 学生明显不懂 → 追问引导，帮他回忆知识点
+- 学生发"不知道""不会""1"等无意义内容 → 可以批评（"认真点""这不算讲解"），但必须继续引导
 
-⚠️ 必须先回复再判断：你不能只思考不说话，每一轮都必须输出可见的回复文字`;
+⚠️ 铁律：无论如何必须输出可见文字，哪怕只是一句批评或追问。禁止只思考不回复`;
 }
 
 export function courseDesignPrompt(extraRequirements = "") {
