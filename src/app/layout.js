@@ -32,7 +32,7 @@ export default function RootLayout({ children }) {
         {/* 顶部导航栏 */}
         <header className="bg-white dark:bg-black border-b border-zinc-200 dark:border-zinc-800">
           <div className="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
-            <h1 className="text-xl font-bold text-blue-600">📚 智学伴</h1>
+            <h1 className="text-xl font-bold text-blue-600 flex items-center gap-2"><img src="/logo.png" alt="智学伴" className="h-7 w-7" />智学伴</h1>
             <nav className="flex items-center gap-1">
               <a href="/" className="px-3 py-1.5 rounded-md text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
                 首页
