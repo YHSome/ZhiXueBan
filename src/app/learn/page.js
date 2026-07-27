@@ -889,7 +889,7 @@ function LearnContent() {
   const key = activeKey();
 
   return (
-    <div className="max-w-3xl mx-auto py-4">
+    <div className="max-w-3xl mx-auto py-4 px-3 md:px-0">
       {/* 顶部进度条 */}
       <div className="mb-6">
         <div className="flex items-center justify-between mb-2">
