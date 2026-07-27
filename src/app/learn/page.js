@@ -646,10 +646,10 @@ function LearnContent() {
       const nextQ = tb.wrongQuestions[nextIndex];
       const sysMsg = {
         role: "assistant",
-        content: `下面是第 ${nextIndex + 1}/${tb.wrongQuestions.length} 道错题：\n\n**${nextQ.question}**`,
+        content: `第 ${nextIndex + 1}/${tb.wrongQuestions.length} 道错题：\n\n**${nextQ.question}**\n\n请开始讲解～`,
       };
       updateCache(key, {
-        teachBack: { ...tb, currentWrongIndex: nextIndex, currentQuestionApproved: false, chatMessages: [...(tb.chatMessages || []), sysMsg] },
+        teachBack: { ...tb, currentWrongIndex: nextIndex, currentQuestionApproved: false, showCollect: false, chatMessages: [sysMsg] },
       });
     } else {
       updateCache(key, { teachBack: { ...tb, approved: true }, stage: STAGE.COMPLETED });
