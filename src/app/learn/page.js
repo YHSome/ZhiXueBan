@@ -578,7 +578,7 @@ function LearnContent() {
           content: teachBackPrompt(wrongQ),
         },
         ...updated,
-      ], 4000);
+      ]);
 
       const display = answer || "(AI 返回为空，请重试)";
       const approved = answer.includes("✅ APPROVED");
