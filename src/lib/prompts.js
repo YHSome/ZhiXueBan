@@ -149,7 +149,8 @@ export function teachBackPrompt(wrongQuestion) {
 
 回复格式：
 - 通过：回复 "✅ APPROVED: " 加简短肯定
-- 追问：一句口语化追问，不要长篇大论`;
+- 追问：一句口语化追问，不要长篇大论
+- ⚠️ 必须输出正文！禁止只思考不回复，哪怕只回一句话`;
 }
 
 export function courseDesignPrompt(extraRequirements = "") {

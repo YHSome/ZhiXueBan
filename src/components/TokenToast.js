@@ -33,7 +33,6 @@ export async function streamAiCall({ apiKey, baseUrl, model, messages, maxTokens
   let buffer = "";
   let gotUsage = false;
   let aborted = false;
-  let hasFinalContent = false; // DeepSeek：区分 thinking 和正式输出
 
   try {
     const res = await fetch("/api/ai", {
@@ -64,9 +63,7 @@ export async function streamAiCall({ apiKey, baseUrl, model, messages, maxTokens
         if (jsonStr === "[DONE]") continue;
         try {
           const chunk = JSON.parse(jsonStr);
-          const delta = chunk.choices?.[0]?.delta;
-          if (delta?.content) { fullContent += delta.content; hasFinalContent = true; }
-          else if (delta?.reasoning_content) { if (!hasFinalContent) fullContent += delta.reasoning_content; }
+          if (chunk.choices?.[0]?.delta?.content) fullContent += chunk.choices[0].delta.content;
           if (chunk.usage) { updateTokenToast({ phase: "done", bytes: totalBytes, usage: chunk.usage }); gotUsage = true; }
         } catch {}
       }
