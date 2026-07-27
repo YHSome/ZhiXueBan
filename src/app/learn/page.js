@@ -578,10 +578,11 @@ function LearnContent() {
           content: teachBackPrompt(wrongQ),
         },
         ...updated,
-      ], 1000);
+      ], 4000);
 
+      const display = answer || "(AI 返回为空，请重试)";
       const approved = answer.includes("✅ APPROVED");
-      const newMessages = [...updated, { role: "assistant", content: answer }];
+      const newMessages = [...updated, { role: "assistant", content: display }];
 
       if (approved) {
         // 标记当前题已通过，但不自动跳转（等用户点"下一题"）
