@@ -87,6 +87,8 @@ export async function streamAiCall({ apiKey, baseUrl, model, messages, maxTokens
     }
     if (!gotUsage) updateTokenToast({ phase: "done", bytes: totalBytes });
     // content 为空时，从 reasoning 中提取 [REPLY]...[/REPLY] 标记内容
+    // 无论 content 是否有内容，都剔除 [REPLY] 标记
+    fullContent = fullContent.replace(/\[REPLY\][\s\S]*?\[\/REPLY\]/g, (m) => m.slice(7, -8).trim());
     if (!fullContent && reasoningBuf) {
       const m = reasoningBuf.match(/\[REPLY\]([\s\S]*?)\[\/REPLY\]/);
       fullContent = m ? m[1].trim() : reasoningBuf.slice(-600).trim();
