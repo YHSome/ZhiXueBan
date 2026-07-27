@@ -15,6 +15,7 @@ const geistMono = Geist_Mono({
 export const metadata = {
   title: "智学伴 - 基于生成式 AI 的异步学习方案",
   description: "突破时空限制，AI 驱动的个性化异步学习平台",
+  icons: { icon: "/favicon.ico" },
 };
 
 export default function RootLayout({ children }) {
