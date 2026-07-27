@@ -620,6 +620,7 @@ function LearnContent() {
         type: wrongQ.type || null,
         courseTitle: course?.courseTitle || "",
         courseId,
+        chatMessages: tb.chatMessages || [],
       });
     }
   }

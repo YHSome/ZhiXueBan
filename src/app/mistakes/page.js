@@ -137,6 +137,7 @@ export default function MistakesPage() {
       type: activeTeach.type || null,
       courseTitle: activeTeach.courseTitle || "",
       courseId: activeTeach.courseId,
+      chatMessages: teachMessages,
     });
     finishQuestion();
   }

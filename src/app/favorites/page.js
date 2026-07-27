@@ -74,6 +74,19 @@ export default function FavoritesPage() {
                     <div>❌ 你的答案：<span className="text-red-500">{item.userAnswer}</span></div>
                   )}
                 </div>
+                {item.chatMessages?.length > 0 && (
+                  <details className="mt-3 border-t border-zinc-100 dark:border-zinc-800 pt-2">
+                    <summary className="text-xs text-zinc-400 cursor-pointer hover:text-zinc-600">💬 查看对话记录</summary>
+                    <div className="mt-2 space-y-2 max-h-64 overflow-y-auto">
+                      {item.chatMessages.map((msg, mi) => (
+                        <div key={mi} className={`text-xs ${msg.role === "user" ? "text-amber-600 dark:text-amber-400" : "text-zinc-600 dark:text-zinc-400"}`}>
+                          <span className="opacity-60 mr-1">{msg.role === "user" ? "🙋" : "🤖"}</span>
+                          {msg.content}
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                )}
               </div>
               <button onClick={() => handleRemove(i)}
                 className="text-zinc-400 hover:text-red-500 text-sm flex-shrink-0 px-2 py-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
