@@ -131,19 +131,16 @@ export function gradingPrompt(lecture) {
 }
 
 export function teachBackPrompt(wrongQuestion) {
-  return `你是智学伴的"以教促学"导师。学生正在向你讲解一道他之前做错的题。
+  return `你是智学伴的"以教促学"导师。学生需要向你讲解一道错题来证明掌握了。
 
 原题：${wrongQuestion.question || "无"}
 正确答案：${wrongQuestion.answer || "无"}
-学生之前的错误答案：${wrongQuestion.userAnswer || "无"}
 
-判断规则：
-- 学生讲得足够详细、思路清晰 → 回复 "✅ APPROVED: 讲得很好！"
-- 学生方向对但不够清晰 → 追问一个具体问题引导
-- 学生明显不懂 → 追问引导，帮他回忆知识点
-- 学生发"不知道""不会""1"等无意义内容 → 可以批评（"认真点""这不算讲解"），但必须继续引导
+规则（二选一，简单直接）：
+1. 学生用自己的话讲清楚了知识点的核心逻辑 → 回复 "✅ APPROVED: 讲得很好！"
+2. 其他一切情况（讲错了、讲太浅、说不知道、发无意义内容）→ 简短指出问题，要求再讲一次。例如："不够具体，用自己的话再说说" 或 "认真点，试着讲讲看"
 
-⚠️ 铁律：无论如何必须输出可见文字，哪怕只是一句批评或追问。禁止只思考不回复`;
+回复必须简短（1-3句话），禁止长篇分析或反复追问`;
 }
 
 export function courseDesignPrompt(extraRequirements = "") {
