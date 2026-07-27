@@ -29,7 +29,6 @@ export async function streamAiCall({ apiKey, baseUrl, model, messages, maxTokens
   updateTokenToast({ phase: "loading", bytes: 0 });
 
   let fullContent = "";
-  let reasoningBuf = ""; // 临时存推理内容，只保留尾部当正文
   let totalBytes = 0;
   let buffer = "";
   let gotUsage = false;
@@ -64,14 +63,12 @@ export async function streamAiCall({ apiKey, baseUrl, model, messages, maxTokens
         if (jsonStr === "[DONE]") continue;
         try {
           const chunk = JSON.parse(jsonStr);
-          const d = chunk.choices?.[0]?.delta;
-          if (d?.content) fullContent += d.content;
-          if (d?.reasoning_content) reasoningBuf += d.reasoning_content;
+          if (chunk.choices?.[0]?.delta?.content) fullContent += chunk.choices[0].delta.content;
           if (chunk.usage) { updateTokenToast({ phase: "done", bytes: totalBytes, usage: chunk.usage }); gotUsage = true; }
         } catch {}
       }
     }
-    // flush decoder 内部缓冲，处理所有剩余 SSE 行
+    // flush decoder 内部缓冲
     buffer += decoder.decode();
     const finalLines = buffer.split("\n");
     for (const line of finalLines) {
@@ -81,20 +78,11 @@ export async function streamAiCall({ apiKey, baseUrl, model, messages, maxTokens
       if (jsonStr === "[DONE]") continue;
       try {
         const chunk = JSON.parse(jsonStr);
-        if (chunk.choices?.[0]?.delta?.content) { fullContent += chunk.choices[0].delta.content; }
-        else if (!chunk.usage && !gotUsage) { console.log("[SSE flush choices]", JSON.stringify(chunk.choices?.[0]).slice(0,400)); }
+        if (chunk.choices?.[0]?.delta?.content) fullContent += chunk.choices[0].delta.content;
         if (chunk.usage) { updateTokenToast({ phase: "done", bytes: totalBytes, usage: chunk.usage }); gotUsage = true; }
       } catch {}
     }
     if (!gotUsage) updateTokenToast({ phase: "done", bytes: totalBytes });
-    // DeepSeek 所有输出都在 reasoning_content，但前半是思考后半才是回复，只取末尾
-    if (!fullContent && reasoningBuf) {
-      // 找到最后一个明显的"回复开头"标记：换行后的第一句话、引号、或"同学"/"回复"等
-      const markers = ["\n\n同学", "\n同学", "：", "回复：", "回答：", "说：", "：“", "指导："];
-      let idx = -1;
-      for (const m of markers) { const i = reasoningBuf.lastIndexOf(m); if (i > idx) idx = i; }
-      fullContent = idx > 0 ? reasoningBuf.slice(idx).trim() : reasoningBuf.slice(-600).trim();
-    }
   } catch (e) {
     if (e.name === "AbortError") {
       aborted = true;
