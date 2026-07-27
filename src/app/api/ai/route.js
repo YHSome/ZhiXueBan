@@ -21,7 +21,6 @@ export async function POST(request) {
         temperature: temperature ?? 0.7,
         max_tokens: maxTokens || 4000,
         stream: doStream,
-        ...(baseUrl.includes("deepseek") ? { extra_body: { thinking: { type: "disabled" } } } : {}),
       }),
     });
 
