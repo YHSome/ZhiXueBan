@@ -581,7 +581,9 @@ function LearnContent() {
       ]);
 
       const display = answer || "(AI 返回为空，请重试)";
-      const approved = answer.includes("✅ APPROVED");
+      // 只检查回复末尾是否含 APPROVED（避免 DeepSeek 思考过程中出现该字样误判）
+      const tail = answer.slice(-300);
+      const approved = tail.includes("✅ APPROVED");
       const newMessages = [...updated, { role: "assistant", content: display }];
 
       if (approved) {
