@@ -578,7 +578,7 @@ function LearnContent() {
           content: teachBackPrompt(wrongQ),
         },
         ...updated,
-      ]);
+      ], 80000);
 
       console.log("[TeachBack] length:", answer?.length, "|", answer?.slice(-300));
       const display = answer || "(AI 返回为空，请重试)";
