@@ -51,12 +51,18 @@ export default function FavoritesPage() {
                 </div>
                 {item.options?.length > 0 && (
                   <div className="flex flex-wrap gap-1.5 mb-2">
-                    {item.options.map((opt, oi) => (
-                      <span key={oi} className={`text-xs px-2 py-0.5 rounded ${
-                        opt === item.answer ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400"
-                        : opt === item.userAnswer ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400"
-                        : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500"}`}>{opt}</span>
-                    ))}
+                    {item.options.map((opt, oi) => {
+                      const ans = item.answer || "";
+                      const user = item.userAnswer || "";
+                      const isCorrect = opt === ans || opt.startsWith(ans) || ans.startsWith(opt) || ans.includes(opt);
+                      const isWrong = opt === user || opt.startsWith(user) || user.startsWith(opt) || user.includes(opt);
+                      return (
+                        <span key={oi} className={`text-xs px-2 py-0.5 rounded ${
+                          isCorrect ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400"
+                          : isWrong ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400"
+                          : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500"}`}>{opt}</span>
+                      );
+                    })}
                   </div>
                 )}
                 <div className="text-xs text-zinc-500 space-y-1">
