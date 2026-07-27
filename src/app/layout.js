@@ -34,6 +34,9 @@ export default function RootLayout({ children }) {
           <div className="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
             <a href="/" className="text-xl font-bold text-blue-600 flex items-center gap-2 hover:opacity-80 transition-opacity no-underline"><img src="/logo.png" alt="智学伴" className="h-7 w-7" />智学伴</a>
             <nav className="flex items-center gap-1">
+              <a href="/" className="px-3 py-1.5 rounded-md text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+                首页
+              </a>
               <a href="/learn" className="px-3 py-1.5 rounded-md text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
                 学习
               </a>
