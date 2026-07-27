@@ -835,8 +835,8 @@ function LearnContent() {
   // ---- 章节列表 ----
   if (activeChapter === null || (!inProgress && activeSection === null)) {
     return (
-      <div className="flex gap-6 h-[calc(100vh-100px)]">
-        <aside className="w-72 flex-shrink-0 overflow-y-auto">
+      <div className="flex gap-6 md:h-[calc(100vh-100px)]">
+        <aside className="w-full md:w-72 flex-shrink-0 overflow-y-auto">
           <button onClick={() => router.push("/learn")} className="text-sm text-indigo-500 hover:text-indigo-700 mb-3 block">← 返回课程列表</button>
           <h3 className="font-semibold text-sm text-zinc-500 mb-1 uppercase">📚 {course.courseTitle}</h3>
 
@@ -1804,7 +1804,7 @@ function FloatingHelper({ lecture, stage, sectionKey, courseId }) {
 
       {/* 悬浮聊天窗 */}
       {open && (
-        <div className="fixed bottom-24 right-6 z-50 w-80 sm:w-96 bg-white dark:bg-zinc-900 rounded-xl shadow-2xl border border-zinc-200 dark:border-zinc-700 flex flex-col overflow-hidden"
+        <div className="fixed bottom-20 right-2 md:bottom-24 md:right-6 z-50 w-[calc(100vw-1rem)] max-w-[22rem] md:w-80 md:max-w-none bg-white dark:bg-zinc-900 rounded-xl shadow-2xl border border-zinc-200 dark:border-zinc-700 flex flex-col overflow-hidden"
           style={{ maxHeight: "70vh" }}>
           {/* 标题栏 */}
           <div className="bg-indigo-600 text-white px-4 py-3 flex items-center justify-between">
