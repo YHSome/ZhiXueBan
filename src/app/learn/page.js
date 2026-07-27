@@ -590,6 +590,7 @@ function LearnContent() {
         updateCache(key, {
           teachBack: { ...tb, chatMessages: newMessages, currentQuestionApproved: true, showCollect: true },
         });
+        return; // 不往下走，确保收藏提示不被跳过
       } else {
         updateCache(key, {
           teachBack: { ...tb, chatMessages: newMessages },
