@@ -5,74 +5,76 @@
 <h1 align="center">智学伴 ZhiXueBan</h1>
 
 <p align="center">
-  <strong>基于生成式 AI 的异步学习解决方案</strong><br/>
-  突破时空限制 · 以教促学 · 让 AI 成为每一个学生的私人助教
+  <strong>基于生成式人工智能的异步学习解决方案</strong><br/>
+  数智融合 · 创赢未来 · AI 赋能教育数字化转型
 </p>
 
 <p align="center">
-  <a href="https://zhi-xue-ban.vercel.app/">🌐 在线演示</a> &nbsp;|&nbsp;
-  <a href="#快速开始">🚀 快速开始</a> &nbsp;|&nbsp;
+  <a href="https://zhi-xue-ban.vercel.app/">🌐 在线体验</a> &nbsp;|&nbsp;
   <a href="https://github.com/YHSome/ZhiXueBan/releases">📦 下载桌面版</a> &nbsp;|&nbsp;
-  <a href="docs/WHITEPAPER.md">📄 技术白皮书</a>
+  <a href="docs/WHITEPAPER.md">📄 技术白皮书</a> &nbsp;|&nbsp;
+  <a href="#技术文档">🔧 技术文档</a>
 </p>
 
 ---
 
-## ✨ 特色
+## 🏆 揭榜挂帅 · 命题一
+
+> 广州大学第二届"庆园杯"人工智能创新应用大赛 — 揭榜挂帅命题
+
+### 选题：基于生成式人工智能的异步学习解决方案
+
+**智学伴** 积极响应国家《新一代人工智能发展规划》和《"人工智能+"行动计划》，聚焦智慧教育场景，以生成式 AI 技术破解传统在线教育"被动灌输、千人一面、图文割裂"三大痛点，构建了面向中学与大学学生的全流程 AI 学习平台。
+
+### 契合大赛目标
+
+| 大赛目标 | 智学伴的实践 |
+|---------|------------|
+| **实战性参与，培养高层次人才** | 费曼学习法驱动的"以教促学"闭环，学生主动讲解、AI 追问验证，培养深度理解与表达力 |
+| **赋能教育转型，破解场景痛点** | 六阶段闯关学习 + AI 自适应出题 + 数学图形渲染，直击在线教育"师生异步、图文分离、难度固定"的痛点 |
+| **推动协同创新，构建融合生态** | 跨学科应用场景（数学/物理/编程/思政等），支持 OpenAI/DeepSeek/通义千问/智谱多模型接入 |
+| **对接发展大局，服务区域建设** | 零服务端成本 + 跨平台交付（Web/桌面EXE），适配粤港澳大湾区教育资源配置不均的现实需求 |
+| **打通转化通道，搭建成长平台** | 开源架构 + 完整文档体系，可快速部署至中小学、高校或教育机构，具备实际落地条件 |
+
+### 数智融合 · 智慧教育创新
 
 - 🎓 **以教促学** — 费曼学习法：学生向 AI 讲解思路，讲通才算掌握
 - 📖 **AI 生成课程** — 自然语言描述或上传 PDF/DOCX，自动生成结构化课程
 - 🎯 **六阶段闯关** — 预习→小测→批改→练习→以教促学→通关
 - 📐 **图文并茂** — 内建数学图形引擎，AI 讲义自动嵌入函数图像（支持 2D/3D）
-- 🧠 **自适应难度** — 四档调节（简单/基础/进阶/挑战），每题标注星级
+- 🧠 **自适应难度** — 四档调节（简单/基础/进阶/挑战），每题标注 1-6 星
 - ⭐ **错题收藏夹** — 通过后可收藏题目+对话记录，随时回顾复习
 - 📋 **试卷系统** — AI 出卷 + 导入试卷 + 倒计时考试 + 自动批改
 - 📱 **响应式设计** — 移动端自适应字号 + 导航栏折叠 + 图形懒加载
-- 🔒 **零服务端成本** — 数据全部本地存储，API Key 不上传
-- 📦 **多端交付** — Web 版、Vercel 部署、Windows 桌面 EXE
+- 🔒 **隐私优先** — 数据全部本地存储，API Key 不上传
+- 📦 **多端交付** — Vercel 部署、Windows 桌面 EXE
 
-→ [查看完整功能介绍与截图](docs/FEATURES.md)
-
----
-
-## 🚀 快速开始
-
-### Web 版
-
-```bash
-npm install
-npm run dev
-# → http://localhost:3000
-```
-
-### 桌面版
-
-从 [Releases](https://github.com/YHSome/ZhiXueBan/releases) 下载 → 解压 → 双击 `智学伴.exe`
-
-### 可选：Python 图形渲染
-
-```bash
-pip install numpy matplotlib
-```
-
-未安装则自动降级纯文字模式。
-
-### 配置
-
-打开设置页 → 粘贴 API Key → 选择模型（支持 OpenAI / DeepSeek / 通义千问 / 智谱）→ 开始学习
+→ [查看完整功能展示与截图](docs/FEATURES.md)
 
 ---
 
-## 📚 文档
+## 🚀 快速体验
+
+| 方式 | 说明 |
+|------|------|
+| 🌐 **在线版** | 打开 [zhi-xue-ban.vercel.app](https://zhi-xue-ban.vercel.app)，配置 API Key 即可使用 |
+| 📦 **桌面版** | 从 [Releases](https://github.com/YHSome/ZhiXueBan/releases) 下载安装包 |
+| 💻 **源码运行** | `npm install && npm run dev`，可选安装 `pip install numpy matplotlib` 启用图形渲染 |
+
+---
+
+## 📚 文档导航
 
 | 文档 | 说明 |
 |------|------|
-| [✨ 功能介绍](docs/FEATURES.md) | 完整功能展示与截图 |
-| [📄 技术白皮书](docs/WHITEPAPER.md) | 系统架构、核心创新、技术决策 |
-| [🔧 开发指南](docs/DEVELOPMENT.md) | 项目结构、API 文档、打包部署 |
+| [✨ 功能介绍与截图](docs/FEATURES.md) | 每项功能详细说明 + 界面截图 |
+| [📄 技术白皮书](docs/WHITEPAPER.md) | 问题动机、核心创新、系统架构、技术实现 |
+| [🔧 开发指南](docs/DEVELOPMENT.md) | 项目结构、API 文档、提示词系统、打包部署 |
 
 ---
 
-## 📄 License
+## 📄 License · 知识产权
+
+本项目为广州大学第二届"庆园杯"人工智能创新应用大赛参赛作品。
 
 MIT © YHSome
