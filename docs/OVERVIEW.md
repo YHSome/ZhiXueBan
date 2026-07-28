@@ -1,4 +1,16 @@
-# 智学伴 — 一页速览
+<p align="center">
+  <img src="logo.png" alt="智学伴" width="120" />
+</p>
+
+<h1 align="center">智学伴 ZhiXueBan</h1>
+
+<p align="center">
+  <a href="https://zhi-xue-ban.vercel.app/">🌐 在线体验</a> &nbsp;|&nbsp;
+  <a href="https://github.com/YHSome/ZhiXueBan/releases">📦 下载桌面版</a> &nbsp;|&nbsp;
+  <a href="../README.md">📄 完整版</a>
+</p>
+
+> ℹ️ 当前为**精简版**（一页速览）。想阅读竞赛申报书格式的完整版？→ [📄 完整版](../README.md)
 
 ---
 

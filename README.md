@@ -13,8 +13,11 @@
   <a href="https://zhi-xue-ban.vercel.app/">🌐 在线体验</a> &nbsp;|&nbsp;
   <a href="https://github.com/YHSome/ZhiXueBan/releases">📦 下载桌面版</a> &nbsp;|&nbsp;
   <a href="docs/WHITEPAPER.md">📄 技术白皮书</a> &nbsp;|&nbsp;
-  <a href="docs/FEATURES.md">📸 功能展示</a>
+  <a href="docs/FEATURES.md">📸 功能展示</a> &nbsp;|&nbsp;
+  <a href="docs/OVERVIEW.md">📋 精简版</a>
 </p>
+
+> ℹ️ 当前为**完整版**（竞赛申报书格式）。只想快速了解功能和快速开始？→ [📋 精简版](docs/OVERVIEW.md)
 
 ---
 

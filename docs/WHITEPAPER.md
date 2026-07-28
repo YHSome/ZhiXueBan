@@ -1,6 +1,19 @@
-[← 返回主页](../README.md)
+<p align="center">
+  <img src="logo.png" alt="智学伴" width="100" />
+</p>
 
-# 智学伴 — 技术白皮书
+<h3 align="center">智学伴 ZhiXueBan</h3>
+
+<p align="center">
+  <a href="../README.md">← 返回主页</a> &nbsp;|&nbsp;
+  <a href="OVERVIEW.md">📋 精简版</a> &nbsp;|&nbsp;
+  <a href="FEATURES.md">📸 功能展示</a> &nbsp;|&nbsp;
+  <a href="DEVELOPMENT.md">🔧 开发指南</a>
+</p>
+
+---
+
+# 技术白皮书
 
 > 基于生成式 AI 的异步学习解决方案
 
