@@ -11,19 +11,16 @@ export async function POST(request) {
     const fs = require("fs");
     const { execSync } = require("child_process");
 
-    // 检测 Python（与 parse 路由完全一致的逻辑）
-    let pythonCmd = null;
-    try {
-      require("child_process").execSync("python3 --version", { stdio: "ignore" });
-      pythonCmd = "python3";
-    } catch {
-      try {
-        require("child_process").execSync("python --version", { stdio: "ignore" });
-        pythonCmd = "python";
-      } catch {}
+    // 直接尝试 python3，失败则 python，都不行就报错
+    let pythonCmd = "python3";
+    let pythonOk = false;
+    try { require("child_process").execSync("python3 --version", { stdio: "pipe" }); pythonOk = true; } catch {}
+    if (!pythonOk) {
+      pythonCmd = "python";
+      try { require("child_process").execSync("python --version", { stdio: "pipe" }); pythonOk = true; } catch {}
     }
-    if (!pythonCmd) {
-      return Response.json({ error: "V2-未检测到 Python" }, { status: 500 });
+    if (!pythonOk) {
+      return Response.json({ error: "V4-未检测到 Python" }, { status: 500 });
     }
 
     // 创建临时工作目录
