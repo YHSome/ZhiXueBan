@@ -23,7 +23,7 @@ export async function POST(request) {
       } catch {}
     }
     if (!pythonCmd) {
-      return Response.json({ error: "未检测到 Python" }, { status: 500 });
+      return Response.json({ error: "V2-未检测到 Python" }, { status: 500 });
     }
 
     // 创建临时工作目录
