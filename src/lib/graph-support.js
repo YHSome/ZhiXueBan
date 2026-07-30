@@ -1,28 +1,43 @@
-// 检测客户端是否支持图形渲染（Python + numpy + matplotlib）
-// 结果缓存在 sessionStorage，同标签页内复用
+// 检测客户端是否支持各项能力
+const CACHE_PYTHON = "zhixueban_caps_python";
+const CACHE_GRAPH = "zhixueban_caps_graph";
+const CACHE_PARSE = "zhixueban_caps_parse";
 
-const CACHE_KEY = "zhixueban_graph_support";
-
-export async function checkGraphSupport() {
-  // 优先读缓存
-  try {
-    const cached = sessionStorage.getItem(CACHE_KEY);
-    if (cached === "1") return true;
-    if (cached === "0") return false;
-  } catch {}
+export async function checkCapabilities() {
+  const caps = { python: false, numpy: false, matplotlib: false, parse: false };
 
   try {
     const res = await fetch("/api/graph/ping");
-    const ok = res.ok;
-    try { sessionStorage.setItem(CACHE_KEY, ok ? "1" : "0"); } catch {}
-    return ok;
-  } catch {
-    try { sessionStorage.setItem(CACHE_KEY, "0"); } catch {}
-    return false;
-  }
+    if (res.ok) {
+      const data = await res.json();
+      caps.python = !!data.python;
+      caps.numpy = !!data.numpy;
+      caps.matplotlib = !!data.matplotlib;
+      caps.parse = !!data.parse;
+    }
+  } catch { /* network error, assume nothing available */ }
+
+  // 缓存到 sessionStorage
+  try {
+    sessionStorage.setItem(CACHE_PYTHON, caps.python ? "1" : "0");
+    sessionStorage.setItem(CACHE_GRAPH, (caps.numpy && caps.matplotlib) ? "1" : "0");
+    sessionStorage.setItem(CACHE_PARSE, caps.parse ? "1" : "0");
+  } catch {}
+
+  return caps;
 }
 
-// 同步读取缓存（首次渲染用，避免闪动）
-export function getCachedGraphSupport() {
-  try { return sessionStorage.getItem(CACHE_KEY) === "1"; } catch { return false; }
+// 同步读取缓存
+export function getCachedCapabilities() {
+  try {
+    return {
+      python: sessionStorage.getItem(CACHE_PYTHON) === "1",
+      graph: sessionStorage.getItem(CACHE_GRAPH) === "1",
+      parse: sessionStorage.getItem(CACHE_PARSE) === "1",
+    };
+  } catch { return { python: false, graph: false, parse: false }; }
 }
+
+// 兼容旧接口
+export function checkGraphSupport() { return checkCapabilities().then(c => c.numpy && c.matplotlib); }
+export function getCachedGraphSupport() { return getCachedCapabilities().graph; }

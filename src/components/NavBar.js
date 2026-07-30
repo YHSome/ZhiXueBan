@@ -1,10 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import MistakeBadge from "@/components/MistakeBadge";
+import { checkCapabilities, getCachedCapabilities } from "@/lib/graph-support";
 
 export default function NavBar() {
   const [open, setOpen] = useState(false);
+  const [caps, setCaps] = useState(() => getCachedCapabilities());
+  const [checked, setChecked] = useState(false);
+
+  useEffect(() => {
+    checkCapabilities().then((c) => {
+      setCaps({ python: c.python, graph: c.numpy && c.matplotlib, parse: c.parse });
+      setChecked(true);
+    });
+  }, []);
+
+  const warnings = [];
+  if (checked) {
+    if (!caps.graph) warnings.push("图形渲染不可用（缺少 numpy/matplotlib）");
+    if (!caps.parse) warnings.push("文件解析不可用（缺少 PyMuPDF/python-docx）");
+  }
 
   const links = (
     <>
@@ -39,6 +55,11 @@ export default function NavBar() {
           )}
         </div>
       </div>
+      {warnings.length > 0 && (
+        <div className="bg-red-50 dark:bg-red-950/30 border-b border-red-200 dark:border-red-800 px-4 py-1.5 text-center text-xs text-red-600 dark:text-red-400">
+          ⚠️ {warnings.join(" · ")} — 功能不受影响，自动降级纯文字 / 禁止上传
+        </div>
+      )}
     </header>
   );
 }
