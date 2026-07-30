@@ -71,8 +71,8 @@ class handler(BaseHTTPRequestHandler):
 
             input_file.write_text("\n".join(processed), encoding="utf-8")
 
-            # 调用 formula_to_image.py
-            script = Path("formula_to_image.py")
+            # 调用 formula_to_image.py（路径相对于项目根目录）
+            script = Path(__file__).resolve().parent.parent / "formula_to_image.py"
             result = subprocess.run(
                 [sys.executable, str(script), str(input_file), str(output_dir)],
                 capture_output=True, text=True, timeout=30, cwd=str(work_dir)
