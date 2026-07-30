@@ -11,13 +11,14 @@ export async function POST(request) {
     const fs = require("fs");
     const { execSync } = require("child_process");
 
-    // 检测 Python
+    // 检测 Python（兼容 Windows/Vercel Linux）
     let pythonCmd = null;
-    try { pythonCmd = execSync("where python 2>nul || which python3 2>/dev/null || which python 2>/dev/null", { encoding: "utf8", shell: true, timeout: 5000 }).split("\n")[0]?.trim(); } catch {}
-    if (!pythonCmd || !fs.existsSync(pythonCmd)) {
-      try { execSync("python3 --version", { stdio: "ignore", shell: true, timeout: 5000 }); pythonCmd = "python3"; } catch {
-        try { execSync("python --version", { stdio: "ignore", shell: true, timeout: 5000 }); pythonCmd = "python"; } catch {}
-      }
+    try { execSync("python3 --version", { stdio: "ignore", shell: true, timeout: 5000 }); pythonCmd = "python3"; } catch {}
+    if (!pythonCmd) {
+      try { execSync("python --version", { stdio: "ignore", shell: true, timeout: 5000 }); pythonCmd = "python"; } catch {}
+    }
+    if (!pythonCmd) {
+      try { execSync("/usr/bin/python3 --version", { stdio: "ignore", shell: true, timeout: 5000 }); pythonCmd = "/usr/bin/python3"; } catch {}
     }
     if (!pythonCmd) {
       return Response.json({ error: "未检测到 Python" }, { status: 500 });

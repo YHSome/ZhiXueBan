@@ -4,11 +4,12 @@ export async function GET() {
     const { execSync } = require("child_process");
 
     let pythonCmd = null;
-    try { pythonCmd = execSync("where python 2>nul || which python3 2>/dev/null || which python 2>/dev/null", { encoding: "utf8", shell: true, timeout: 5000 }).split("\n")[0]?.trim(); } catch {}
+    try { execSync("python3 --version", { stdio: "ignore", shell: true, timeout: 5000 }); pythonCmd = "python3"; } catch {}
     if (!pythonCmd) {
-      try { execSync("python3 --version", { stdio: "ignore", shell: true, timeout: 5000 }); pythonCmd = "python3"; } catch {
-        try { execSync("python --version", { stdio: "ignore", shell: true, timeout: 5000 }); pythonCmd = "python"; } catch {}
-      }
+      try { execSync("python --version", { stdio: "ignore", shell: true, timeout: 5000 }); pythonCmd = "python"; } catch {}
+    }
+    if (!pythonCmd) {
+      try { execSync("/usr/bin/python3 --version", { stdio: "ignore", shell: true, timeout: 5000 }); pythonCmd = "/usr/bin/python3"; } catch {}
     }
     if (!pythonCmd) {
       return Response.json({ ok: false, reason: "no-python" }, { status: 200 });
