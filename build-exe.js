@@ -44,7 +44,7 @@ fs.mkdirSync(appDir, { recursive: true });
 console.log("复制应用文件...");
 const include = [
   "main.js", "package.json", ".next", "node_modules",
-  "public", "src"
+  "public", "src", "formula_to_image.py", "parse.py", "requirements.txt"
 ];
 for (const item of include) {
   const src = path.join(root, item);
